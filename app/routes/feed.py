@@ -333,38 +333,37 @@ async def get_my_messages(
     )
     user_posts = posts_result.scalars().all()
     
-    # Merge and deduplicate messages
+    # Convert to list to avoid side effects and ensure sortability
+    starred_messages = list(starred_messages)
+    
+    # Sort both lists by creation time (newest first)
+    user_posts.sort(key=lambda x: x.created_at, reverse=True)
+    starred_messages.sort(key=lambda x: x.created_at, reverse=True)
+    
+    # Helper to format a list of messages
+    def format_list(msgs, starred_set):
+        formatted = []
+        for msg in msgs:
+            try:
+                formatted_time = msg.created_at.strftime("%H:%M")
+            except:
+                formatted_time = str(msg.created_at)
+            
+            formatted.append({
+                "id": msg.id,
+                "content": linkify_content(msg.content),
+                "created_at": formatted_time,
+                "author": msg.user.email if msg.user else "Unknown",
+                "is_starred": msg.id in starred_set
+            })
+        return formatted
+
     starred_ids = {m.id for m in starred_messages}
-    all_messages = []
-    seen_ids = set()
-    
-    for msg in user_posts + starred_messages:
-        if msg.id not in seen_ids:
-            all_messages.append(msg)
-            seen_ids.add(msg.id)
-    
-    # Sort by creation time (newest first)
-    all_messages.sort(key=lambda x: x.created_at, reverse=True)
-    
-    # Format messages for template
-    formatted_messages = []
-    for msg in all_messages:
-        try:
-            formatted_time = msg.created_at.strftime("%H:%M")
-        except:
-            formatted_time = str(msg.created_at)
-        
-        formatted_messages.append({
-            "id": msg.id,
-            "content": linkify_content(msg.content),
-            "created_at": formatted_time,
-            "author": msg.user.email if msg.user else "Unknown",
-            "is_starred": msg.id in starred_ids
-        })
     
     return templates.TemplateResponse("partials/my_messages.html", {
         "request": request,
-        "messages": formatted_messages,
+        "my_messages": format_list(user_posts, starred_ids),
+        "starred_messages": format_list(starred_messages, starred_ids),
         "user": user
     })
 

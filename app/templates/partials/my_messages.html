@@ -1,13 +1,31 @@
 <div id="my-messages-list" style="max-height: 400px; overflow-y: auto;">
-    {% if messages %}
-    {% for message in messages %}
+    {% if starred_messages %}
+    <h4
+        style="margin: 1rem 0 0.5rem; padding-left: 0.5rem; color: #6b7280; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">
+        Starred Messages</h4>
+    {% for message in starred_messages %}
     {% with content=message.content, created_at=message.created_at, author=message.author, id=message.id,
     user_id=message.user_id,
     replies=message.replies, is_starred=message.is_starred, user=user, hide_delete=True %}
     {% include "partials/feed_item.html" %}
     {% endwith %}
     {% endfor %}
-    {% else %}
+    {% endif %}
+
+    {% if my_messages %}
+    <h4
+        style="margin: 1rem 0 0.5rem; padding-left: 0.5rem; color: #6b7280; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">
+        My Messages</h4>
+    {% for message in my_messages %}
+    {% with content=message.content, created_at=message.created_at, author=message.author, id=message.id,
+    user_id=message.user_id,
+    replies=message.replies, is_starred=message.is_starred, user=user, hide_delete=True %}
+    {% include "partials/feed_item.html" %}
+    {% endwith %}
+    {% endfor %}
+    {% endif %}
+
+    {% if not starred_messages and not my_messages %}
     <div style="padding: 1rem; color: #6b7280; text-align: center;">
         No messages yet. Star some posts or write your own!
     </div>
