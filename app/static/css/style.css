@@ -34,28 +34,42 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 2rem;
+    padding: 1rem;
 }
 
 .container {
     width: 100%;
-    max-width: 1000px;
+    max-width: 1400px;
     background-color: var(--surface-color);
     border-radius: var(--radius);
     box-shadow: var(--shadow-lg);
     padding: 2rem;
-    margin-top: 2rem;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
     transition: transform 0.2s ease;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 h1 {
     font-size: 1.875rem;
     font-weight: 800;
-    text-align: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.5rem;
     background: linear-gradient(to right, var(--primary-color), #8b5cf6);
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
 }
 
 h2 {
@@ -159,7 +173,7 @@ textarea:focus {
 }
 
 .feed-container {
-    height: 400px;
+    max-height: 600px;
     overflow-y: auto;
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
@@ -240,12 +254,7 @@ textarea:focus {
     text-decoration: underline;
 }
 
-footer {
-    margin-top: 2rem;
-    color: var(--text-muted);
-    font-size: 0.875rem;
-    text-align: center;
-}
+
 
 /* Modal */
 .modal-overlay {
@@ -355,35 +364,46 @@ footer {
 
 @media (max-width: 640px) {
     body {
-        padding: 1rem;
+        padding: 0.5rem;
     }
 
     .container {
         padding: 1rem;
         margin-top: 0;
+        border-radius: 0.5rem;
     }
 
     h1 {
         font-size: 1.5rem;
     }
+
+    .subtitle {
+        font-size: 0.625rem;
+    }
 }
 
 .feed-layout {
     display: grid;
-    grid-template-columns: 250px 1fr 250px;
-    gap: 2rem;
+    grid-template-columns: 300px 1fr 300px;
+    gap: 1.5rem;
     align-items: start;
 }
 
 @media (max-width: 1024px) {
     .feed-layout {
-        grid-template-columns: 1fr 250px;
+        grid-template-columns: 1fr;
     }
 
     .left-sidebar {
-        display: none;
-        /* Or move it somewhere else? For now let's hide or stack */
-        /* Actually, let's stack it */
+        order: 1;
+    }
+
+    .feed-main {
+        order: 0;
+    }
+
+    .hashtag-sidebar {
+        order: 2;
     }
 }
 
@@ -394,7 +414,6 @@ footer {
 
     .hashtag-sidebar,
     .left-sidebar {
-        order: -1;
         margin-bottom: 1rem;
     }
 }
@@ -405,8 +424,33 @@ footer {
     padding: 1rem;
     border-radius: var(--radius);
     border: 1px solid var(--border-color);
+    max-height: 600px;
+    overflow-y: auto;
     position: sticky;
     top: 1rem;
+}
+
+/* Scrollbar styling for sidebars */
+.hashtag-sidebar::-webkit-scrollbar,
+.left-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.hashtag-sidebar::-webkit-scrollbar-track,
+.left-sidebar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.hashtag-sidebar::-webkit-scrollbar-thumb,
+.left-sidebar::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 10px;
+}
+
+.hashtag-sidebar::-webkit-scrollbar-thumb:hover,
+.left-sidebar::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
 }
 
 .hashtag-sidebar h3,
