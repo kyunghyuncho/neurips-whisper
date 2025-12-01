@@ -35,6 +35,7 @@ from datetime import datetime
 import json
 import re
 import time
+from app.limiter import limiter
 
 
 # Router with /feed prefix
@@ -91,7 +92,9 @@ def format_message_recursive(msg, starred_ids=None):
 
 
 @router.post("/post")
+@limiter.limit("10/minute")
 async def post_message(
+    request: Request,
     content: str = Form(...),
     parent_id: int = Form(None),
     user: User = Depends(get_current_user),
@@ -178,7 +181,9 @@ async def post_message(
 
 
 @router.post("/star/{message_id}")
+@limiter.limit("60/minute")
 async def star_message(
+    request: Request,
     message_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -289,6 +294,7 @@ async def ban_user(
 
 
 @router.get("/my_messages")
+@limiter.limit("60/minute")
 async def get_my_messages(
     request: Request,
     user: User = Depends(get_current_user),
@@ -433,6 +439,7 @@ async def download_data(
 
 
 @router.get("/thread/{message_id}")
+@limiter.limit("60/minute")
 async def get_thread(
     request: Request,
     message_id: int,

@@ -26,6 +26,7 @@ from app.utils.validators import is_institutional_email
 from app.config import settings
 from app.templating import templates
 from pydantic import EmailStr
+from app.limiter import limiter
 
 
 # Create router with /auth prefix
@@ -34,6 +35,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login")
+@limiter.limit("5/minute")
 async def login(
     request: Request,
     email: EmailStr = Form(...),  # EmailStr validates email format
