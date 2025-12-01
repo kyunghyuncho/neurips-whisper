@@ -284,6 +284,8 @@ textarea:focus {
     border-radius: var(--radius);
     max-width: 400px;
     width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
     box-shadow: var(--shadow-lg);
     transform: translateY(20px);
     transition: transform 0.2s ease;
@@ -325,7 +327,7 @@ textarea:focus {
 
 /* Message Modal */
 #message-modal .modal {
-    max-width: 600px;
+    max-width: 800px;
 }
 
 #message-modal-content {
@@ -487,4 +489,38 @@ textarea:focus {
 .action-btn svg {
     display: none;
     /* Hide icons if we revert fully, or keep them small if we mix? User said "text based buttons". Let's assume text only or text + icon. Let's go text only for simplicity as requested "revert to original". */
+}
+
+/* Icon Buttons (Delete & Ban) */
+.icon-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.375rem;
+    border-radius: 0.375rem;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6;
+    width: fit-content;
+    align-self: flex-start;
+}
+
+.icon-btn:hover {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.delete-btn:hover {
+    color: #ef4444;
+    /* Red 500 */
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.ban-btn:hover {
+    color: #f59e0b;
+    /* Amber 500 */
+    background-color: rgba(245, 158, 11, 0.1);
 }

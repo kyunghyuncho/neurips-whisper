@@ -118,13 +118,16 @@
 
     <!-- Message Modal -->
     <div id="message-modal" class="modal-overlay {% if focused_message %}active{% endif %}">
-        <div class="modal" style="max-width: 800px; width: 90%;">
+        <div class="modal">
             <div id="message-modal-content">
                 {% if focused_message %}
                 <!-- Initial render for focused message (deep link) -->
-                <!-- We should probably fetch the thread here too via HTMX trigger if possible, or render it server side -->
-                <!-- For now, just show content -->
-                {{ focused_message.content | safe }}
+                <!-- Render the full feed item with all metadata -->
+                {% with content=focused_message.content, created_at=focused_message.created_at,
+                author=focused_message.author, id=focused_message.id, user_id=focused_message.user_id, replies=[],
+                is_starred=False, expanded=True, user=user, in_modal=True %}
+                {% include "partials/feed_item.html" %}
+                {% endwith %}
                 {% endif %}
             </div>
             <div id="message-modal-meta" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
@@ -170,6 +173,7 @@
         }
 
         function closeMessageModal() {
+            console.log('closeMessageModal called');
             document.getElementById('message-modal').classList.remove('active');
             // Remove msg param from URL
             const url = new URL(window.location);
@@ -230,6 +234,48 @@
                 // Search param is already in params (from window.location), so it's preserved
                 url.search = params.toString();
                 window.location.href = url.toString();
+            }
+        }
+
+        function toggleReplyForm(element) {
+            // Find the closest feed-item
+            const feedItem = element.closest('.feed-item');
+            if (!feedItem) return;
+
+            // Find the reply form container within this feed item
+            const formContainer = feedItem.querySelector('.reply-form-container');
+            if (!formContainer) return;
+
+            if (formContainer.style.display === 'none') {
+                formContainer.style.display = 'block';
+                // Focus textarea
+                const textarea = formContainer.querySelector('textarea');
+                if (textarea) textarea.focus();
+            } else {
+                formContainer.style.display = 'none';
+            }
+        }
+
+        function toggleReplies(element) {
+            const feedItem = element.closest('.feed-item');
+            if (!feedItem) return;
+
+            const repliesContainer = feedItem.querySelector('.feed-replies');
+            const toggleBtn = feedItem.querySelector('.reply-toggle-btn');
+
+            // If the clicked element is the toggle button itself, use it. 
+            // If it's the "Hide replies" button (which might be separate), we still need to update the main toggle button.
+
+            if (!repliesContainer) return;
+
+            if (repliesContainer.style.display === 'none') {
+                repliesContainer.style.display = 'block';
+                if (toggleBtn) toggleBtn.textContent = 'Hide replies';
+            } else {
+                repliesContainer.style.display = 'none';
+                // Count children div.feed-item
+                const count = repliesContainer.querySelectorAll('.feed-item').length;
+                if (toggleBtn) toggleBtn.textContent = 'Show ' + count + ' replies';
             }
         }
 

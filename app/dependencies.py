@@ -87,6 +87,12 @@ async def get_current_user(
                 detail="User not found"
             )
         
+        # Check if user is a superuser
+        # SUPER_USERS is a comma-separated string of emails
+        from app.config import settings
+        super_users = [e.strip() for e in settings.SUPER_USERS.split(",") if e.strip()]
+        user.is_superuser = user.email in super_users
+        
         return user
         
     except HTTPException:

@@ -2,7 +2,8 @@
     {% if messages %}
     {% for message in messages %}
     {% with content=message.content, created_at=message.created_at, author=message.author, id=message.id,
-    replies=message.replies, is_starred=message.is_starred %}
+    user_id=message.user_id,
+    replies=message.replies, is_starred=message.is_starred, user=user, hide_delete=True %}
     {% include "partials/feed_item.html" %}
     {% endwith %}
     {% endfor %}

@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     # Affects logging verbosity and debug features
     ENVIRONMENT: str = "production"
 
+    # Comma-separated list of super user emails
+    # These users have admin privileges (delete messages, ban users)
+    SUPER_USERS: str = ""
+
     class Config:
         """
         Pydantic configuration class.

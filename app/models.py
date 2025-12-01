@@ -81,18 +81,18 @@ class Message(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Foreign key to User - who wrote this message
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
     
     # Message content (text, may contain hashtags and URLs)
     content = Column(String)
     
     # When the message was posted
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     
     # Self-referential foreign key for threaded conversations
     # - nullable=True: Top-level messages have no parent (parent_id=None)
     # - For replies, this points to the parent message's ID
-    parent_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
+    parent_id = Column(Integer, ForeignKey("messages.id"), nullable=True, index=True)
     
     # Self-referential relationship for replies
     # - backref="parent": Creates Message.parent to access the parent message
@@ -108,6 +108,25 @@ class Message(Base):
     # Many-to-one relationship with User
     # - backref="messages": Creates User.messages (all messages by a user)
     # This allows: message.user (get the author) and user.messages (get all their posts)
-    user = relationship("User", backref="messages")
+    # Many-to-one relationship with User
+    # - backref="messages": Creates User.messages (all messages by a user)
+    # This allows: message.user (get the author) and user.messages (get all their posts)
+    # cascade="all, delete-orphan": If a user is deleted, all their messages are too
+    user = relationship("User", backref=backref("messages", cascade="all, delete-orphan"))
+
+
+class BlacklistedEmail(Base):
+    """
+    Model for blacklisted email addresses.
+    
+    Users with these emails are blocked from signing up or logging in.
+    This is used when a superuser bans a user.
+    """
+    __tablename__ = "blacklisted_emails"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    reason = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
