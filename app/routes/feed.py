@@ -55,6 +55,17 @@ async def post_message(
             # Increment total count
             await redis_client.hincrby("hashtag_counts", tag, 1)
 
+    # Extract and store terms
+    from app.utils.text import extract_terms
+    terms = extract_terms(content)
+    if terms:
+        timestamp = time.time()
+        for term in terms:
+            # Add to Redis sorted set: score=timestamp, member=term:msg_id
+            await redis_client.zadd("term_activity", {f"{term}:{message.id}": timestamp})
+            # Add to Redis set of all terms
+            await redis_client.sadd("all_terms", term)
+
     # Publish to Redis
     data = {
         "id": message.id,
@@ -136,12 +147,15 @@ async def get_hashtags(request: Request, tags: list[str] = Query(None)):
     })
 
 @router.get("/container")
-async def get_feed_container(request: Request, tags: list[str] = Query(None), db: AsyncSession = Depends(get_db)):
+async def get_feed_container(request: Request, tags: list[str] = Query(None), search: str = Query(None), db: AsyncSession = Depends(get_db)):
     query = select(Message, User).join(User)
     
     if tags:
         conditions = [Message.content.contains(f"#{tag}") for tag in tags]
         query = query.filter(or_(*conditions))
+        
+    if search:
+        query = query.filter(Message.content.ilike(f"%{search}%"))
         
     query = query.order_by(desc(Message.created_at)).limit(30)
         
@@ -163,16 +177,19 @@ async def get_feed_container(request: Request, tags: list[str] = Query(None), db
         })
         
     tags_query = "&".join([f"tags={t}" for t in tags]) if tags else ""
+    if search:
+        tags_query += f"&search={search}"
         
     return templates.TemplateResponse("partials/feed_container.html", {
         "request": request,
         "messages": messages,
         "tags": tags,
+        "search": search,
         "tags_query": tags_query
     })
 
 @router.get("/stream")
-async def stream_messages(request: Request, tags: list[str] = Query(None)):
+async def stream_messages(request: Request, tags: list[str] = Query(None), search: str = Query(None)):
     async def event_generator():
         # Stream new messages
         async for message in subscribe_channel(CHANNEL):
@@ -186,6 +203,11 @@ async def stream_messages(request: Request, tags: list[str] = Query(None)):
             if tags:
                 # Show message if it contains ANY of the selected tags
                 if not any(f"#{t}" in data["content"] for t in tags):
+                    continue
+                    
+            # Filter by search term if present
+            if search:
+                if search.lower() not in data["content"].lower():
                     continue
             
             # Render template
@@ -207,7 +229,7 @@ async def stream_messages(request: Request, tags: list[str] = Query(None)):
     return EventSourceResponse(event_generator())
 
 @router.get("/history")
-async def get_history(request: Request, cursor: int = None, tags: list[str] = Query(None), db: AsyncSession = Depends(get_db)):
+async def get_history(request: Request, cursor: int = None, tags: list[str] = Query(None), search: str = Query(None), db: AsyncSession = Depends(get_db)):
     if not cursor:
         return "" 
         
@@ -216,6 +238,9 @@ async def get_history(request: Request, cursor: int = None, tags: list[str] = Qu
     if tags:
         conditions = [Message.content.contains(f"#{tag}") for tag in tags]
         query = query.filter(or_(*conditions))
+        
+    if search:
+        query = query.filter(Message.content.ilike(f"%{search}%"))
         
     query = query.order_by(desc(Message.created_at)).limit(30)
         
@@ -239,12 +264,15 @@ async def get_history(request: Request, cursor: int = None, tags: list[str] = Qu
     next_cursor = messages[-1]["id"] if messages else None
     
     tags_query = "&".join([f"tags={t}" for t in tags]) if tags else ""
+    if search:
+        tags_query += f"&search={search}"
     
     return templates.TemplateResponse("partials/feed_history.html", {
         "request": request,
         "messages": messages,
         "next_cursor": next_cursor,
         "tags": tags,
+        "search": search,
         "tags_query": tags_query
     })
 

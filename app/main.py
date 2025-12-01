@@ -19,11 +19,11 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     
     # Rebuild hashtag cache
-    from app.services.feed import rebuild_hashtag_cache
+    from app.services.feed import rebuild_cache
     from app.database import AsyncSessionLocal
     
     async with AsyncSessionLocal() as session:
-        await rebuild_hashtag_cache(session)
+        await rebuild_cache(session)
         
     yield
 

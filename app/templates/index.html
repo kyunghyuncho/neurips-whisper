@@ -50,6 +50,14 @@
 
             <div class="feed-layout">
                 <div class="feed-main">
+                    <div class="search-bar" style="margin-bottom: 1rem;">
+                        <input type="text" name="search" placeholder="Search messages..." class="form-control"
+                            style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;"
+                            hx-get="/feed/container{% if tags_query %}?{{ tags_query }}{% endif %}"
+                            hx-trigger="keyup changed delay:500ms, search" hx-target="#feed-wrapper" hx-swap="outerHTML"
+                            hx-push-url="true" value="{{ search or '' }}">
+                    </div>
+
                     {% include "partials/feed_container.html" %}
 
                     <div id="post-error"
@@ -206,6 +214,7 @@
             let tags = params.getAll('tags');
             if (!tags.includes(tag)) {
                 params.append('tags', tag);
+                // Search param is already in params (from window.location), so it's preserved
                 url.search = params.toString();
                 window.location.href = url.toString();
             }

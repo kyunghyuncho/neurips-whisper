@@ -1,14 +1,18 @@
 <div id="feed-wrapper">
-    {% if tags %}
+    {% if tags or search %}
     <div
         style="background: #e0e7ff; color: #4338ca; padding: 0.5rem; border-radius: 0.5rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
-        <span>Filtering by <strong>{{ tags|join(', ') }}</strong></span>
-        <button hx-get="/feed/container" hx-target="#feed-wrapper" class="btn-link"
-            style="font-size: 0.875rem;">Clear</button>
+        <span>
+            {% if tags %}Filtering by <strong>{{ tags|join(', ') }}</strong>{% endif %}
+            {% if tags and search %} and {% endif %}
+            {% if search %}Searching for <strong>"{{ search }}"</strong>{% endif %}
+        </span>
+        <button hx-get="/feed/container" hx-target="#feed-wrapper" class="btn-link" style="font-size: 0.875rem;">Clear
+            All</button>
     </div>
     {% endif %}
 
-    <div hx-ext="sse" sse-connect="/feed/stream{% if tags %}?{{ tags_query }}{% endif %}" sse-swap="message"
+    <div hx-ext="sse" sse-connect="/feed/stream{% if tags_query %}?{{ tags_query }}{% endif %}" sse-swap="message"
         hx-swap="afterbegin" class="feed-container">
         {% for msg in messages %}
         {% with content=msg.content, created_at=msg.created_at, author=msg.author, id=msg.id %}
@@ -18,7 +22,7 @@
 
         {% if messages %}
         {% set last_msg = messages[-1] %}
-        <div hx-get="/feed/history?cursor={{ last_msg.id }}{% if tags %}&{{ tags_query }}{% endif %}"
+        <div hx-get="/feed/history?cursor={{ last_msg.id }}{% if tags_query %}&{{ tags_query }}{% endif %}"
             hx-trigger="revealed" hx-swap="outerHTML" class="text-center p-4 text-gray-500">
             Loading more...
         </div>

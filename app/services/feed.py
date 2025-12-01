@@ -14,15 +14,17 @@ async def subscribe_channel(channel: str):
         if message["type"] == "message":
             yield message["data"]
 
-async def rebuild_hashtag_cache(db_session):
+async def rebuild_cache(db_session):
     """
-    Rebuilds the hashtag cache in Redis from the database.
-    Populates 'all_hashtags' with every hashtag ever seen.
-    Populates 'hashtag_activity' with hashtags from the last hour.
+    Rebuilds the hashtag and term cache in Redis from the database.
+    Populates 'all_hashtags' and 'all_terms' with every tag/term ever seen.
+    Populates 'hashtag_activity' and 'term_activity' with items from the last hour.
+    Populates 'hashtag_counts' with total counts.
     """
     from app.models import Message
     from sqlalchemy import select
     from datetime import datetime, timedelta
+    from app.utils.text import extract_terms
     import re
     import time
     
@@ -30,6 +32,8 @@ async def rebuild_hashtag_cache(db_session):
     await redis_client.delete("hashtag_activity")
     await redis_client.delete("all_hashtags")
     await redis_client.delete("hashtag_counts")
+    await redis_client.delete("term_activity")
+    await redis_client.delete("all_terms")
     
     # Get ALL messages
     query = select(Message)
@@ -41,18 +45,28 @@ async def rebuild_hashtag_cache(db_session):
     counts = {}
     
     for message in messages:
+        # Hashtags
         hashtags = set(re.findall(r"#(\w+)", message.content))
         if hashtags:
-            # Add to all_hashtags and count
             for tag in hashtags:
                 await redis_client.sadd("all_hashtags", tag)
                 counts[tag] = counts.get(tag, 0) + 1
                 
-            # If within last hour, add to activity
             if message.created_at >= one_hour_ago:
                 timestamp = message.created_at.timestamp()
                 for tag in hashtags:
                     await redis_client.zadd("hashtag_activity", {f"{tag}:{message.id}": timestamp})
+
+        # Terms
+        terms = extract_terms(message.content)
+        if terms:
+            for term in terms:
+                await redis_client.sadd("all_terms", term)
+                
+            if message.created_at >= one_hour_ago:
+                timestamp = message.created_at.timestamp()
+                for term in terms:
+                    await redis_client.zadd("term_activity", {f"{term}:{message.id}": timestamp})
                     
     # Store counts in Redis
     if counts:
