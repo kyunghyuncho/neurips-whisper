@@ -370,9 +370,21 @@ footer {
 
 .feed-layout {
     display: grid;
-    grid-template-columns: 1fr 250px;
+    grid-template-columns: 250px 1fr 250px;
     gap: 2rem;
     align-items: start;
+}
+
+@media (max-width: 1024px) {
+    .feed-layout {
+        grid-template-columns: 1fr 250px;
+    }
+
+    .left-sidebar {
+        display: none;
+        /* Or move it somewhere else? For now let's hide or stack */
+        /* Actually, let's stack it */
+    }
 }
 
 @media (max-width: 768px) {
@@ -380,13 +392,15 @@ footer {
         grid-template-columns: 1fr;
     }
 
-    .hashtag-sidebar {
+    .hashtag-sidebar,
+    .left-sidebar {
         order: -1;
         margin-bottom: 1rem;
     }
 }
 
-.hashtag-sidebar {
+.hashtag-sidebar,
+.left-sidebar {
     background: white;
     padding: 1rem;
     border-radius: var(--radius);
@@ -395,7 +409,8 @@ footer {
     top: 1rem;
 }
 
-.hashtag-sidebar h3 {
+.hashtag-sidebar h3,
+.left-sidebar h3 {
     font-size: 1rem;
     font-weight: 600;
     margin-bottom: 1rem;

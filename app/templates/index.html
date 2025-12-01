@@ -49,6 +49,15 @@
             </div>
 
             <div class="feed-layout">
+                <div class="left-sidebar">
+                    <div id="my-messages-section">
+                        <h3>My Messages</h3>
+                        <div hx-get="/feed/my_messages" hx-trigger="load, updateMyMessages from:body">
+                            <div class="htmx-indicator">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="feed-main">
                     <div class="search-bar" style="margin-bottom: 1rem;">
                         <input type="text" name="search" placeholder="Search messages..." class="form-control"
@@ -73,13 +82,6 @@
                 </div>
 
                 <div class="hashtag-sidebar">
-                    <div id="my-messages-section" style="margin-bottom: 2rem;">
-                        <h3>My Messages</h3>
-                        <div hx-get="/feed/my_messages" hx-trigger="load, updateMyMessages from:body">
-                            <div class="htmx-indicator">Loading...</div>
-                        </div>
-                    </div>
-
                     <div hx-get="/feed/hashtags{% if tags_query %}?{{ tags_query }}{% endif %}"
                         hx-trigger="load, every 60s, updateHashtags from:body">
                         <div class="htmx-indicator">Loading trends...</div>

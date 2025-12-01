@@ -83,7 +83,7 @@ async def post_message(
     from fastapi.responses import JSONResponse
     return JSONResponse(
         content={"message": "Message posted"},
-        headers={"HX-Trigger": "updateHashtags"}
+        headers={"HX-Trigger": json.dumps({"updateHashtags": True, "updateMyMessages": True})}
     )
 
 
@@ -241,6 +241,8 @@ async def get_thread(request: Request, message_id: int, db: AsyncSession = Depen
         "request": request,
         "message": formatted_root
     })
+
+@router.get("/hashtags")
 async def get_hashtags(request: Request, tags: list[str] = Query(None)):
     # Clean old entries (older than 1 hour)
     now = time.time()
