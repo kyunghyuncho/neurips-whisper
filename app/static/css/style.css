@@ -401,3 +401,31 @@ footer {
     margin-bottom: 1rem;
     color: var(--text-color);
 }
+
+/* Action Buttons */
+.action-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    /* Pill shape */
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.action-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background-color: white;
+}
+
+.action-btn svg {
+    display: none;
+    /* Hide icons if we revert fully, or keep them small if we mix? User said "text based buttons". Let's assume text only or text + icon. Let's go text only for simplicity as requested "revert to original". */
+}
