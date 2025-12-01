@@ -50,6 +50,10 @@ async def post_message(
         for tag in hashtags:
             # Add to Redis sorted set: score=timestamp, member=tag:msg_id
             await redis_client.zadd("hashtag_activity", {f"{tag}:{message.id}": timestamp})
+            # Add to Redis set of all hashtags
+            await redis_client.sadd("all_hashtags", tag)
+            # Increment total count
+            await redis_client.hincrby("hashtag_counts", tag, 1)
 
     # Publish to Redis
     data = {
@@ -74,18 +78,56 @@ async def get_hashtags(request: Request, tags: list[str] = Query(None)):
     cutoff = now - 3600
     await redis_client.zremrangebyscore("hashtag_activity", "-inf", cutoff)
     
-    # Get all active hashtag events
+    # Get all active hashtag events (for popularity/trending)
     activity = await redis_client.zrange("hashtag_activity", 0, -1)
     
-    counts = {}
+    trending_counts = {}
     for item in activity:
         # Item format: tag:msg_id
         parts = item.split(":")
         if len(parts) >= 1:
             tag = parts[0]
-            counts[tag] = counts.get(tag, 0) + 1
+            trending_counts[tag] = trending_counts.get(tag, 0) + 1
+            
+    # Get ALL hashtags ever seen
+    all_tags = await redis_client.smembers("all_hashtags")
+    
+    # Get total counts
+    total_counts = await redis_client.hgetall("hashtag_counts")
+    
+    # Combine
+    final_list = []
+    for tag in all_tags:
+        # Use total count for display, but maybe sort by trending count?
+        # User said "count is not correct", implying they want total count.
+        # Let's use total count for display.
+        count = int(total_counts.get(tag, 0))
+        trending = trending_counts.get(tag, 0)
+        final_list.append((tag, count, trending))
         
-    sorted_hashtags = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+    # Sort by trending count (desc), then total count (desc), then alpha
+    sorted_hashtags = sorted(final_list, key=lambda x: (-x[2], -x[1], x[0]))
+    
+    # Prioritize selected tags
+    if tags:
+        selected = []
+        others = []
+        for tag, count, trending in sorted_hashtags:
+            if tag in tags:
+                selected.append((tag, count))
+            else:
+                others.append((tag, count))
+        
+        # Ensure selected tags that might not be in "all_hashtags" are shown
+        existing_selected = {t[0] for t in selected}
+        for t in tags:
+            if t not in existing_selected:
+                selected.append((t, 0))
+                
+        sorted_hashtags = selected + others
+    else:
+        # Strip trending count for template
+        sorted_hashtags = [(t, c) for t, c, tr in sorted_hashtags]
     
     return templates.TemplateResponse("partials/hashtag_list.html", {
         "request": request,

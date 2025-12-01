@@ -17,7 +17,8 @@ async def subscribe_channel(channel: str):
 async def rebuild_hashtag_cache(db_session):
     """
     Rebuilds the hashtag cache in Redis from the database.
-    Only considers messages from the last hour.
+    Populates 'all_hashtags' with every hashtag ever seen.
+    Populates 'hashtag_activity' with hashtags from the last hour.
     """
     from app.models import Message
     from sqlalchemy import select
@@ -27,17 +28,32 @@ async def rebuild_hashtag_cache(db_session):
     
     # Clear existing cache
     await redis_client.delete("hashtag_activity")
+    await redis_client.delete("all_hashtags")
+    await redis_client.delete("hashtag_counts")
     
-    # Get messages from last hour
-    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
-    query = select(Message).filter(Message.created_at >= one_hour_ago)
+    # Get ALL messages
+    query = select(Message)
     result = await db_session.execute(query)
     messages = result.scalars().all()
+    
+    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+    
+    counts = {}
     
     for message in messages:
         hashtags = set(re.findall(r"#(\w+)", message.content))
         if hashtags:
-            # Convert datetime to timestamp
-            timestamp = message.created_at.timestamp()
+            # Add to all_hashtags and count
             for tag in hashtags:
-                await redis_client.zadd("hashtag_activity", {f"{tag}:{message.id}": timestamp})
+                await redis_client.sadd("all_hashtags", tag)
+                counts[tag] = counts.get(tag, 0) + 1
+                
+            # If within last hour, add to activity
+            if message.created_at >= one_hour_ago:
+                timestamp = message.created_at.timestamp()
+                for tag in hashtags:
+                    await redis_client.zadd("hashtag_activity", {f"{tag}:{message.id}": timestamp})
+                    
+    # Store counts in Redis
+    if counts:
+        await redis_client.hset("hashtag_counts", mapping=counts)

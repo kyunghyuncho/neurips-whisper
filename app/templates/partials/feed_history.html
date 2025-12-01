@@ -1,0 +1,12 @@
+{% for msg in messages %}
+{% with content=msg.content, created_at=msg.created_at, author=msg.author, id=msg.id %}
+{% include "partials/feed_item.html" %}
+{% endwith %}
+{% endfor %}
+
+{% if next_cursor %}
+<div hx-get="/feed/history?cursor={{ next_cursor }}{% if tag %}&tag={{ tag }}{% endif %}" hx-trigger="revealed"
+    hx-swap="outerHTML" class="text-center p-4 text-gray-500">
+    Loading more...
+</div>
+{% endif %}

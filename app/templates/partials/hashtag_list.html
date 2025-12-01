@@ -1,0 +1,14 @@
+<div class="hashtag-list">
+    <h3>Trending Topics</h3>
+    <form hx-get="/feed/container" hx-target="#feed-wrapper" hx-trigger="change">
+        {% for tag, count in hashtags %}
+        <div class="checkbox-label">
+            <input type="checkbox" name="tags" value="{{ tag }}" {% if tag in selected_tags %}checked{% endif %}>
+            <span>#{{ tag }} <small class="text-muted">({{ count }})</small></span>
+        </div>
+        {% endfor %}
+        {% if not hashtags %}
+        <p class="text-muted">No trending hashtags yet.</p>
+        {% endif %}
+    </form>
+</div>
