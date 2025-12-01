@@ -368,6 +368,70 @@ async def get_my_messages(
     })
 
 
+@router.get("/download")
+async def download_data(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download user data as JSON.
+    
+    Regular users: Download their own posts and starred messages.
+    Superusers: Download all messages in the system.
+    """
+    data = {}
+    
+    # Helper to serialize message list
+    def serialize_messages(msgs):
+        serialized = []
+        for msg in msgs:
+            serialized.append({
+                "id": msg.id,
+                "content": msg.content,
+                "created_at": msg.created_at.isoformat(),
+                "author_email": msg.user.email if msg.user else "Unknown",
+                "parent_id": msg.parent_id
+            })
+        return serialized
+
+    if getattr(user, "is_superuser", False):
+        # Superuser: Download everything
+        query = select(Message).options(selectinload(Message.user)).order_by(Message.created_at)
+        result = await db.execute(query)
+        all_messages = result.scalars().all()
+        data["all_messages"] = serialize_messages(all_messages)
+    else:
+        # Regular user: My posts + Starred
+        # 1. My posts
+        my_posts_query = select(Message).filter(Message.user_id == user.id).options(selectinload(Message.user)).order_by(Message.created_at)
+        result = await db.execute(my_posts_query)
+        my_posts = result.scalars().all()
+        data["my_messages"] = serialize_messages(my_posts)
+        
+        # 2. Starred messages
+        # Need to fetch user with starred_messages loaded
+        user_result = await db.execute(
+            select(User)
+            .filter(User.id == user.id)
+            .options(selectinload(User.starred_messages).selectinload(Message.user))
+        )
+        user_with_stars = user_result.scalars().first()
+        starred = user_with_stars.starred_messages if user_with_stars else []
+        # Sort starred by created_at
+        starred = sorted(starred, key=lambda x: x.created_at)
+        data["starred_messages"] = serialize_messages(starred)
+
+    # Return as JSON file download
+    from fastapi.responses import Response
+    json_content = json.dumps(data, indent=2)
+    
+    return Response(
+        content=json_content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=neurips_whisper_data.json"}
+    )
+
+
 @router.get("/thread/{message_id}")
 async def get_thread(
     request: Request,
