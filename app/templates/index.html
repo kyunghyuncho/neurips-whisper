@@ -12,7 +12,10 @@
 
 <body>
     <div class="container">
-        <h1>NeurIPS Whisper</h1>
+        <div class="header">
+            <h1>NeurIPS Whisper</h1>
+            <p class="subtitle">Developed by Kyunghyun Cho under KC Explorer LLC</p>
+        </div>
 
         {% if not user %}
         <!-- Login Form -->
@@ -59,6 +62,19 @@
                 </div>
 
                 <div class="feed-main">
+                    <!-- Post Form (moved to top) -->
+                    <div id="post-error"
+                        style="color: #ef4444; margin-bottom: 0.5rem; font-size: 0.875rem; display: none;">
+                    </div>
+                    <form hx-post="/feed/post" hx-swap="none" style="margin-bottom: 1rem;">
+                        <textarea name="content" rows="3" placeholder="What's happening?" maxlength="140"
+                            required></textarea>
+                        <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">
+                            Post
+                        </button>
+                    </form>
+
+                    <!-- Search Bar -->
                     <div class="search-bar" style="margin-bottom: 1rem;">
                         <input type="text" name="search" placeholder="Search messages..." class="form-control"
                             style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;"
@@ -67,18 +83,8 @@
                             hx-push-url="true" value="{{ search or '' }}">
                     </div>
 
+                    <!-- Feed Container -->
                     {% include "partials/feed_container.html" %}
-
-                    <div id="post-error"
-                        style="color: #ef4444; margin-bottom: 0.5rem; font-size: 0.875rem; display: none;">
-                    </div>
-                    <form hx-post="/feed/post" hx-swap="none">
-                        <textarea name="content" rows="3" placeholder="What's happening?" maxlength="140"
-                            required></textarea>
-                        <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">
-                            Post
-                        </button>
-                    </form>
                 </div>
 
                 <div class="hashtag-sidebar">
@@ -92,10 +98,7 @@
         {% endif %}
     </div>
 
-    <!-- Footer -->
-    <footer>
-        Developed by Kyunghyun Cho under KC Explorer LLC
-    </footer>
+
 
     <!-- Terms of Use Modal -->
     <div id="terms-modal" class="modal-overlay">
