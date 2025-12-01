@@ -36,6 +36,8 @@ import json
 import re
 import time
 from app.limiter import limiter
+from app.services.audit import log_action
+from app.models import AuditLog
 
 
 # Router with /feed prefix
@@ -159,6 +161,12 @@ async def post_message(
             await redis_client.zadd("term_activity", {f"{term}:{message.id}": timestamp})
             # Add to set of all terms
             await redis_client.sadd("all_terms", term)
+            
+    # Cleanup old term activity (keep last 24 hours)
+    # This prevents Redis from filling up with old search data
+    cutoff = time.time() - 86400  # 24 hours
+    await redis_client.zremrangebyscore("term_activity", "-inf", cutoff)
+
 
     # Broadcast message to real-time subscribers via Redis pub/sub
     data = {
@@ -259,6 +267,7 @@ async def delete_message(
     
     if message:
         await db.delete(message)
+        await log_action(db, "message_deleted", user.email, {"message_id": message_id, "content_snippet": message.content[:50]})
         await db.commit()
         
     return ""
@@ -288,6 +297,7 @@ async def ban_user(
         
         # Delete user (cascades to messages)
         await db.delete(target_user)
+        await log_action(db, "user_banned", user.email, {"banned_user_id": user_id, "banned_user_email": target_user.email})
         await db.commit()
         
     return "User banned"
@@ -406,6 +416,8 @@ async def download_data(
         result = await db.execute(query)
         all_messages = result.scalars().all()
         data["all_messages"] = serialize_messages(all_messages)
+        await log_action(db, "data_downloaded", user.email, "Full system download by superuser")
+        await db.commit()
     else:
         # Regular user: My posts + Starred
         # 1. My posts
@@ -426,6 +438,8 @@ async def download_data(
         # Sort starred by created_at
         starred = sorted(starred, key=lambda x: x.created_at)
         data["starred_messages"] = serialize_messages(starred)
+        await log_action(db, "data_downloaded", user.email, "User data download")
+        await db.commit()
 
     # Return as JSON file download
     from fastapi.responses import Response
@@ -438,7 +452,48 @@ async def download_data(
     )
 
 
+
+@router.get("/audit_logs")
+async def get_audit_logs(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download audit logs as JSONL (Super User only).
+    """
+    if not getattr(user, "is_superuser", False):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Fetch all logs
+    result = await db.execute(select(AuditLog).order_by(desc(AuditLog.created_at)))
+    logs = result.scalars().all()
+    
+    # Serialize to JSONL
+    output = ""
+    for log in logs:
+        entry = {
+            "id": log.id,
+            "action": log.action,
+            "user_email": log.user_email,
+            "details": log.details,
+            "created_at": log.created_at.isoformat()
+        }
+        output += json.dumps(entry) + "\n"
+        
+    # Log this action too
+    await log_action(db, "audit_logs_downloaded", user.email, "Audit logs downloaded")
+    await db.commit()
+
+    from fastapi.responses import Response
+    return Response(
+        content=output,
+        media_type="application/x-jsonlines",
+        headers={"Content-Disposition": "attachment; filename=audit_logs.jsonl"}
+    )
+
+
 @router.get("/thread/{message_id}")
+
 @limiter.limit("60/minute")
 async def get_thread(
     request: Request,

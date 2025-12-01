@@ -27,6 +27,7 @@ from app.config import settings
 from app.templating import templates
 from pydantic import EmailStr
 from app.limiter import limiter
+from app.services.audit import log_action
 
 
 # Create router with /auth prefix
@@ -110,6 +111,9 @@ async def login(
         db.add(user)
         await db.commit()
         await db.refresh(user)  # Refresh to get auto-generated ID
+        
+        # Log user creation
+        await log_action(db, "user_created", email, "User created via login")
 
     # Generate magic link with JWT token
     # Token contains user email in the "sub" (subject) claim
