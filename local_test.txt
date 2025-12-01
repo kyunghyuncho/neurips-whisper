@@ -1,0 +1,16 @@
+# Install the database and cache
+brew install postgresql@14 redis
+
+# Start them as background services (they will auto-start on reboot)
+brew services start postgresql@14
+brew services start redis
+
+# 1. Open the Postgres CLI
+psql postgres
+
+# 2. Inside the CLI (which looks like 'postgres=#'), paste this:
+CREATE USER kc WITH PASSWORD 'password';
+CREATE DATABASE neurips_db;
+GRANT ALL PRIVILEGES ON DATABASE neurips_db TO kc;
+\q
+

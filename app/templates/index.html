@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeurIPS Whisper</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
+    <div class="w-full max-w-md bg-white rounded-lg shadow-md p-6">
+        <h1 class="text-2xl font-bold mb-4 text-center">NeurIPS Whisper</h1>
+
+        <!-- Login Form -->
+        <div id="login-section">
+            <h2 class="text-xl font-semibold mb-2">Login</h2>
+            <form hx-post="/auth/login" hx-swap="outerHTML">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Email</label>
+                    <input type="email" name="email"
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Conference Code</label>
+                    <input type="text" name="conference_code"
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        required>
+                </div>
+                <div class="mb-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" name="agree_terms" class="mr-2" required>
+                        <span class="text-sm">I agree to the <button type="button"
+                                onclick="document.getElementById('terms-modal').classList.remove('hidden')"
+                                class="text-blue-500 hover:underline">Terms of Use</button></span>
+                    </label>
+                </div>
+                <button type="submit"
+                    class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full">
+                    Get Magic Link
+                </button>
+            </form>
+        </div>
+
+        <!-- Feed Section (Hidden by default, shown after login logic in real app) -->
+        <!-- For demo purposes, we'll just show it below -->
+        <div id="feed-section" class="mt-8">
+            <h2 class="text-xl font-semibold mb-2">Live Feed</h2>
+            <div hx-ext="sse" sse-connect="/feed/stream" sse-swap="message"
+                class="space-y-4 mb-4 h-64 overflow-y-auto border p-2 rounded">
+                <!-- Messages will appear here -->
+            </div>
+
+            <form hx-post="/feed/post" hx-swap="none" hx-on::after-request="this.reset()">
+                <input type="hidden" name="user_id" value="1"> <!-- Mock user ID -->
+                <textarea name="content"
+                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2"
+                    rows="3" placeholder="What's happening?" maxlength="140" required></textarea>
+                <button type="submit"
+                    class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full">
+                    Post
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-8 text-gray-500 text-sm">
+        Developed by Kyunghyun Cho under KC Explorer LLC
+    </footer>
+
+    <!-- Terms of Use Modal -->
+    <div id="terms-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Terms of Use</h3>
+                <div class="mt-2 px-7 py-3 text-left">
+                    <ul class="list-disc text-sm text-gray-500">
+                        <li>Messages are immutable (cannot be deleted/edited).</li>
+                        <li>Data is ephemeral: All data will be wiped 48 hours after the conference ends.</li>
+                        <li>No scraping, archiving, or using this data for model training.</li>
+                    </ul>
+                </div>
+                <div class="items-center px-4 py-3">
+                    <button id="ok-btn" onclick="document.getElementById('terms-modal').classList.add('hidden')"
+                        class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

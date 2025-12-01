@@ -1,0 +1,8 @@
+Variable Name,Value / How to fill
+CONFERENCE_SECRET,"Set your shared secret (e.g., NeurIPS2025_SD)"
+SENDGRID_API_KEY,Paste your key from SendGrid
+FROM_EMAIL,The verified sender email you set up in SendGrid
+SECRET_KEY,"Generate a random string (e.g., run openssl rand -hex 32 in terminal)"
+DATABASE_URL,Auto-fill: Type ${{Postgres.DATABASE_URL}} (Railway will autocomplete this)
+REDIS_URL,Auto-fill: Type ${{Redis.REDIS_URL}} (Railway will autocomplete this)
+PORT,"8000 (Railway injects this automatically, but safe to set 8000 if unsure)"
