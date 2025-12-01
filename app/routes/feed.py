@@ -1,24 +1,93 @@
+"""
+Feed Routes - Message Posting, Real-time Streaming, and Filtering
+
+This module handles all feed-related endpoints:
+- POST /feed/post: Create new messages (top-level or replies)
+- POST /feed/star/{id}: Star/unstar messages
+- GET /feed/my_messages: User's posts and starred messages
+- GET /feed/thread/{id}: Thread view for conversations
+- GET /feed/hashtags: List trending hashtags
+- GET /feed/container: Feed content with filters
+- GET /feed/stream: Real-time message streaming (SSE)
+- GET /feed/history: Load older messages (infinite scroll)
+
+Key patterns demonstrated:
+- Server-Sent Events (SSE) for real-time updates
+- Redis pub/sub for message broadcasting
+- HTMX partial templates for dynamic UI updates
+- Hashtag and term caching for performance
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, Form, Request, Query
 from app.dependencies import get_current_user, get_optional_user
 from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import desc, or_
+from sqlalchemy import desc, or_, inspect
 from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import Message, User
 from app.services.feed import publish_message, subscribe_channel, redis_client
 from app.utils.validators import is_valid_url
-from app.utils.text import linkify_content
+from app.utils.text import linkify_content, extract_terms
 from app.templating import templates
 from datetime import datetime
 import json
 import re
 import time
-from sqlalchemy import delete, text
 
+
+# Router with /feed prefix
 router = APIRouter(prefix="/feed", tags=["feed"])
+
+# Redis pub/sub channel for broadcasting new messages
 CHANNEL = "neurips_feed"
+
+
+def format_message_recursive(msg, starred_ids=None):
+    """
+    Recursively format a message and its replies for template rendering.
+    
+    This helper function is reused across multiple endpoints to ensure
+    consistent message formatting. It handles nested replies and optional
+    star status tracking.
+    
+    Args:
+        msg: Message ORM object with relationships loaded
+        starred_ids: Optional set of message IDs that are starred by current user
+        
+    Returns:
+        Dict with formatted message data including nested replies
+    """
+    # Format timestamp consistently across the app
+    try:
+        formatted_time = msg.created_at.strftime("%H:%M")
+    except:
+        # Fallback if datetime formatting fails
+        formatted_time = str(msg.created_at)
+    
+    replies = []
+    # Check if replies relationship is loaded to avoid lazy-loading errors
+    # In async SQLAlchemy, lazy loading would cause "MissingGreenlet" errors
+    if "replies" not in inspect(msg).unloaded:
+        # Recursively format each reply
+        replies = [format_message_recursive(reply, starred_ids) for reply in msg.replies]
+    
+    # Build message dictionary
+    result = {
+        "id": msg.id,
+        "content": linkify_content(msg.content),  # Convert URLs and hashtags to links
+        "created_at": formatted_time,
+        "author": msg.user.email if msg.user else "Unknown",
+        "replies": replies  # Nested list of formatted reply dictionaries
+    }
+    
+    # Add star status if starred_ids set is provided
+    if starred_ids is not None:
+        result["is_starred"] = msg.id in starred_ids
+    
+    return result
+
 
 @router.post("/post")
 async def post_message(
@@ -27,59 +96,78 @@ async def post_message(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """
+    Create a new message (top-level post or reply).
+    
+    This endpoint:
+    1. Validates message length and URLs
+    2. Saves message to database
+    3. Extracts and caches hashtags and terms in Redis
+    4. Broadcasts message to real-time subscribers
+    5. Triggers UI updates via HTMX
+    
+    Args:
+        content: Message text (max 140 characters)
+        parent_id: ID of parent message if this is a reply, None for top-level
+        user: Authenticated user (injected by dependency)
+        db: Database session
+        
+    Returns:
+        JSON response with HTMX triggers for UI updates
+        
+    Raises:
+        HTTPException: If message is too long or contains disallowed URLs
+    """
+    # Validate message length (Twitter-style limit)
     if len(content) > 140:
         raise HTTPException(status_code=400, detail="Message too long")
     
-    # Check for URLs
+    # Validate URLs against whitelist
     words = content.split()
     for word in words:
         if word.startswith("http") and not is_valid_url(word):
-             raise HTTPException(status_code=400, detail="URL not allowed")
+            raise HTTPException(status_code=400, detail="URL not allowed")
 
-    # Save to DB
-    # Save to DB
+    # Save message to database
     message = Message(user_id=user.id, content=content, parent_id=parent_id)
     db.add(message)
     await db.commit()
-    await db.refresh(message)
+    await db.refresh(message)  # Refresh to get auto-generated fields
 
-    # Fetch user email (already have user)
-    user_email = user.email
-
-    # Extract and store hashtags
+    # Extract and cache hashtags in Redis
     hashtags = set(re.findall(r"#(\w+)", content))
     if hashtags:
         timestamp = time.time()
         for tag in hashtags:
-            # Add to Redis sorted set: score=timestamp, member=tag:msg_id
+            # Add to sorted set for temporal queries (trending, recent activity)
             await redis_client.zadd("hashtag_activity", {f"{tag}:{message.id}": timestamp})
-            # Add to Redis set of all hashtags
+            # Add to set of all hashtags ever seen
             await redis_client.sadd("all_hashtags", tag)
-            # Increment total count
+            # Increment usage counter
             await redis_client.hincrby("hashtag_counts", tag, 1)
 
-    # Extract and store terms
-    from app.utils.text import extract_terms
+    # Extract and cache significant terms (excluding stop words)
     terms = extract_terms(content)
     if terms:
         timestamp = time.time()
         for term in terms:
-            # Add to Redis sorted set: score=timestamp, member=term:msg_id
+            # Add to sorted set for search functionality
             await redis_client.zadd("term_activity", {f"{term}:{message.id}": timestamp})
-            # Add to Redis set of all terms
+            # Add to set of all terms
             await redis_client.sadd("all_terms", term)
 
-    # Publish to Redis
+    # Broadcast message to real-time subscribers via Redis pub/sub
     data = {
         "id": message.id,
         "content": message.content,
         "created_at": message.created_at.isoformat(),
-        "user_email": user_email,
+        "user_email": user.email,
         "parent_id": message.parent_id
     }
     await publish_message(CHANNEL, data)
-    
 
+    # Return success with HTMX triggers
+    # These trigger client-side events to update hashtag list and user's messages
     from fastapi.responses import JSONResponse
     return JSONResponse(
         content={"message": "Message posted"},
@@ -93,57 +181,106 @@ async def star_message(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Fetch user with starred messages
-    # We need to reload user with starred_messages or join
-    # Since get_current_user returns a user, but maybe not with relationships loaded.
-    # Let's re-fetch or use selectinload in dependency? 
-    # Better to re-fetch to be safe and simple here.
-    result = await db.execute(select(User).filter(User.id == user.id).options(selectinload(User.starred_messages)))
+    """
+    Toggle star status for a message.
+    
+    Users can star messages to save them for later.
+    This implements a many-to-many relationship via the star_association table.
+    
+    Args:
+        message_id: ID of message to star/unstar
+        user: Authenticated user
+        db: Database session
+        
+    Returns:
+        Rendered star button HTML partial with updated state
+        
+    Raises:
+        HTTPException: If user or message not found
+    """
+    # Re-fetch user with starred_messages relationship loaded
+    # The user from get_current_user dependency doesn't have relationships loaded
+    result = await db.execute(
+        select(User)
+        .filter(User.id == user.id)
+        .options(selectinload(User.starred_messages))
+    )
     user = result.scalars().first()
     
+    # Fetch the message
     msg_result = await db.execute(select(Message).filter(Message.id == message_id))
     message = msg_result.scalars().first()
     
     if not user or not message:
         raise HTTPException(status_code=404, detail="User or Message not found")
     
-    # Check if already starred
+    # Toggle star status
     if message in user.starred_messages:
+        # Already starred - remove it
         user.starred_messages.remove(message)
         is_starred = False
     else:
+        # Not starred - add it
         user.starred_messages.append(message)
         is_starred = True
-        
+    
     await db.commit()
     
-    # Return the updated star button
+    # Return updated star button HTML
+    # HTMX will swap this into the page
     return templates.TemplateResponse("partials/star_button.html", {
         "request": {},
         "id": message.id,
         "is_starred": is_starred
-    }, headers={"HX-Trigger": "updateMyMessages"})
+    }, headers={"HX-Trigger": "updateMyMessages"})  # Trigger update of "My Messages" panel
 
 
 @router.get("/my_messages")
-async def get_my_messages(request: Request, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_my_messages(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get messages posted or starred by the current user.
+    
+    This powers the "My Messages" sidebar panel, showing:
+    - Messages the user has posted
+    - Messages the user has starred
+    
+    Results are merged, deduplicated, and sorted by creation time.
+    
+    Args:
+        request: FastAPI request (needed for template)
+        user: Authenticated user
+        db: Database session
+        
+    Returns:
+        Rendered HTML partial with user's messages
+    """
     user_id = user.id
-    # Fetch user's posts
+    
+    # Query for user's own posts
     user_posts_query = select(Message).filter(Message.user_id == user_id)
     
-    # Fetch starred posts
-    # We need to join with the association table
-    # But simpler: fetch user with starred_messages loaded
-    user_result = await db.execute(select(User).filter(User.id == user_id).options(selectinload(User.starred_messages).selectinload(Message.user)))
+    # Fetch user with starred messages relationship loaded
+    user_result = await db.execute(
+        select(User)
+        .filter(User.id == user_id)
+        .options(
+            selectinload(User.starred_messages).selectinload(Message.user)
+        )
+    )
     user = user_result.scalars().first()
-    
     starred_messages = user.starred_messages if user else []
     
-    # Execute user posts query
-    posts_result = await db.execute(user_posts_query.options(selectinload(Message.user)))
+    # Execute user posts query with user relationship loaded
+    posts_result = await db.execute(
+        user_posts_query.options(selectinload(Message.user))
+    )
     user_posts = posts_result.scalars().all()
     
-    # Combine and sort
+    # Merge and deduplicate messages
     starred_ids = {m.id for m in starred_messages}
     all_messages = []
     seen_ids = set()
@@ -152,17 +289,18 @@ async def get_my_messages(request: Request, user: User = Depends(get_current_use
         if msg.id not in seen_ids:
             all_messages.append(msg)
             seen_ids.add(msg.id)
-            
+    
+    # Sort by creation time (newest first)
     all_messages.sort(key=lambda x: x.created_at, reverse=True)
     
-    # Format
+    # Format messages for template
     formatted_messages = []
     for msg in all_messages:
         try:
             formatted_time = msg.created_at.strftime("%H:%M")
         except:
             formatted_time = str(msg.created_at)
-            
+        
         formatted_messages.append({
             "id": msg.id,
             "content": linkify_content(msg.content),
@@ -170,23 +308,38 @@ async def get_my_messages(request: Request, user: User = Depends(get_current_use
             "author": msg.user.email if msg.user else "Unknown",
             "is_starred": msg.id in starred_ids
         })
-        
+    
     return templates.TemplateResponse("partials/my_messages.html", {
         "request": request,
         "messages": formatted_messages
     })
 
+
 @router.get("/thread/{message_id}")
-async def get_thread(request: Request, message_id: int, db: AsyncSession = Depends(get_db)):
-    # Find the root message
+async def get_thread(
+    request: Request,
+    message_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get a complete conversation thread for a message.
+    
+    This finds the root message of a thread and returns the entire
+    conversation tree. Used when clicking a reply to see context.
+    
+    Args:
+        request: FastAPI request
+        message_id: ID of any message in the thread
+        db: Database session
+        
+    Returns:
+        Rendered thread view HTML with the full conversation
+    """
+    # Find the root message by traversing up the parent chain
     current_id = message_id
     root_id = current_id
     
-    # Traverse up to find root
-    # Since we don't have recursive CTEs easily setup in async sqlalchemy without raw SQL, 
-    # and depth is likely shallow, we can loop. 
-    # But better: just fetch the message and check parent_id.
-    
+    # Traverse up to find root (parent_id == None)
     while True:
         res = await db.execute(select(Message).filter(Message.id == current_id))
         msg = res.scalars().first()
@@ -197,9 +350,8 @@ async def get_thread(request: Request, message_id: int, db: AsyncSession = Depen
         else:
             root_id = msg.id
             break
-            
-    # Now fetch the whole tree from root
-    # We can reuse the recursive loader strategy from get_feed_container
+    
+    # Fetch the entire thread from root with eager loading
     query = select(Message).options(
         selectinload(Message.user),
         selectinload(Message.replies).selectinload(Message.user),
@@ -214,72 +366,97 @@ async def get_thread(request: Request, message_id: int, db: AsyncSession = Depen
     if not root_msg:
         return "Message not found"
 
-    # Format recursively
-    from sqlalchemy import inspect
-    def format_message_recursive(msg):
+    # Format recursively with focus marker for the requested message
+    def format_with_focus(msg):
+        """Helper to mark the focused message in the thread."""
+        formatted = format_message_recursive(msg)
+        formatted["is_focused"] = msg.id == message_id
+        return formatted
+    
+    # Override format_message_recursive locally to add focus marker
+    from sqlalchemy import inspect as sqlalchemy_inspect
+    
+    def format_recursive_with_focus(msg):
         try:
             formatted_time = msg.created_at.strftime("%H:%M")
         except:
             formatted_time = str(msg.created_at)
-            
+        
         replies = []
-        if "replies" not in inspect(msg).unloaded:
-            replies = [format_message_recursive(reply) for reply in msg.replies]
-            
+        if "replies" not in sqlalchemy_inspect(msg).unloaded:
+            replies = [format_recursive_with_focus(reply) for reply in msg.replies]
+        
         return {
             "id": msg.id,
             "content": linkify_content(msg.content),
             "created_at": formatted_time,
             "author": msg.user.email if msg.user else "Unknown",
             "replies": replies,
-            "is_focused": msg.id == message_id
+            "is_focused": msg.id == message_id  # Mark the requested message
         }
-
-    formatted_root = format_message_recursive(root_msg)
+    
+    formatted_root = format_recursive_with_focus(root_msg)
     
     return templates.TemplateResponse("partials/thread_view.html", {
         "request": request,
         "message": formatted_root
     })
 
+
 @router.get("/hashtags")
-async def get_hashtags(request: Request, tags: list[str] = Query(None)):
-    # Clean old entries (older than 1 hour)
+async def get_hashtags(
+    request: Request,
+    tags: list[str] = Query(None)
+):
+    """
+    Get list of hashtags with usage counts and trending status.
+    
+    This endpoint powers the hashtag sidebar, showing:
+    - All hashtags ever used (with total counts)
+    - Trending hashtags (most active in last hour)
+    - Selected tags highlighted at top
+    
+    Args:
+        request: FastAPI request
+        tags: Currently selected hashtags (to highlight)
+        
+    Returns:
+        Rendered HTML partial with hashtag list
+    """
+    # Clean old activity entries (older than 1 hour)
     now = time.time()
-    cutoff = now - 3600
+    cutoff = now - 3600  # 1 hour in seconds
     await redis_client.zremrangebyscore("hashtag_activity", "-inf", cutoff)
     
-    # Get all active hashtag events (for popularity/trending)
+    # Get recent activity for trending calculation
     activity = await redis_client.zrange("hashtag_activity", 0, -1)
     
+    # Count trending occurrences (activity in last hour)
     trending_counts = {}
     for item in activity:
-        # Item format: tag:msg_id
+        # Item format: "tag:msg_id"
         parts = item.split(":")
         if len(parts) >= 1:
             tag = parts[0]
             trending_counts[tag] = trending_counts.get(tag, 0) + 1
-            
-    # Get ALL hashtags ever seen
+    
+    # Get all hashtags ever seen
     all_tags = await redis_client.smembers("all_hashtags")
     
-    # Get total counts
+    # Get total usage counts
     total_counts = await redis_client.hgetall("hashtag_counts")
     
-    # Combine
+    # Combine data for each tag
     final_list = []
     for tag in all_tags:
-        # Use total count for display, but maybe sort by trending count?
-        # User said "count is not correct", implying they want total count.
-        # Let's use total count for display.
         count = int(total_counts.get(tag, 0))
         trending = trending_counts.get(tag, 0)
         final_list.append((tag, count, trending))
-        
-    # Sort by trending count (desc), then total count (desc), then alpha
+    
+    # Sort by: trending count (desc), then total count (desc), then alphabetically
     sorted_hashtags = sorted(final_list, key=lambda x: (-x[2], -x[1], x[0]))
     
-    # Prioritize selected tags
+    # Prioritize selected tags at the top
     if tags:
         selected = []
         others = []
@@ -289,15 +466,15 @@ async def get_hashtags(request: Request, tags: list[str] = Query(None)):
             else:
                 others.append((tag, count))
         
-        # Ensure selected tags that might not be in "all_hashtags" are shown
+        # Ensure selected tags that might not be in cache are shown
         existing_selected = {t[0] for t in selected}
         for t in tags:
             if t not in existing_selected:
                 selected.append((t, 0))
-                
+        
         sorted_hashtags = selected + others
     else:
-        # Strip trending count for template
+        # Strip trending count for template (only need tag and total count)
         sorted_hashtags = [(t, c) for t, c, tr in sorted_hashtags]
     
     return templates.TemplateResponse("partials/hashtag_list.html", {
@@ -306,87 +483,79 @@ async def get_hashtags(request: Request, tags: list[str] = Query(None)):
         "selected_tags": tags or []
     })
 
-@router.get("/container")
-async def get_feed_container(request: Request, tags: list[str] = Query(None), search: str = Query(None), db: AsyncSession = Depends(get_db)):
-    # Recursive function to format messages
-    from sqlalchemy import inspect
-    def format_message_recursive(msg):
-        try:
-            formatted_time = msg.created_at.strftime("%H:%M")
-        except:
-            formatted_time = str(msg.created_at)
-            
-        replies = []
-        # Check if 'replies' is loaded to avoid MissingGreenlet error
-        if "replies" not in inspect(msg).unloaded:
-            replies = [format_message_recursive(reply) for reply in msg.replies]
-            
-        return {
-            "id": msg.id,
-            "content": linkify_content(msg.content),
-            "created_at": formatted_time,
-            "author": msg.user.email if msg.user else "Unknown",
-            "replies": replies,
-            "is_starred": is_starred
-        }
 
-    # Fetch user to check starred messages
+@router.get("/container")
+async def get_feed_container(
+    request: Request,
+    tags: list[str] = Query(None),
+    search: str = Query(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get main feed container with filtered messages.
+    
+    This powers the main feed display with support for:
+    - Hashtag filtering (show messages with specific tags)
+    - Search filtering (text search in messages)
+    - Star status for authenticated users
+    
+    Args:
+        request: FastAPI request
+        tags: List of hashtags to filter by
+        search: Search term to filter by
+        db: Database session
+        
+    Returns:
+        Rendered HTML partial with feed messages
+    """
+    # Get current user to check starred messages (optional)
     current_user = await get_optional_user(request, db)
     starred_ids = set()
+    
     if current_user:
-        # Re-fetch with relationship
-        user_result = await db.execute(select(User).filter(User.id == current_user.id).options(selectinload(User.starred_messages)))
+        # Fetch user with starred messages relationship
+        user_result = await db.execute(
+            select(User)
+            .filter(User.id == current_user.id)
+            .options(selectinload(User.starred_messages))
+        )
         current_user = user_result.scalars().first()
         starred_ids = {msg.id for msg in current_user.starred_messages}
 
-    # We need to pass is_starred to the recursive function, but it's hard to pass down.
-    # Instead, we can post-process or modify the function to check the set.
-    
-    def format_message_recursive_with_star(msg):
-        try:
-            formatted_time = msg.created_at.strftime("%H:%M")
-        except:
-            formatted_time = str(msg.created_at)
-            
-        replies = []
-        if "replies" not in inspect(msg).unloaded:
-            replies = [format_message_recursive_with_star(reply) for reply in msg.replies]
-            
-        return {
-            "id": msg.id,
-            "content": linkify_content(msg.content),
-            "created_at": formatted_time,
-            "author": msg.user.email if msg.user else "Unknown",
-            "replies": replies,
-            "is_starred": msg.id in starred_ids
-        }
-
+    # Build query with eager loading (avoid N+1 queries)
     query = select(Message).options(
         selectinload(Message.user),
         selectinload(Message.replies).selectinload(Message.user),
         selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
         selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
         selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user)
-    ).filter(Message.parent_id == None)
+    ).filter(Message.parent_id == None)  # Only top-level messages
     
+    # Apply filters
     if tags:
+        # Show messages containing ANY of the selected tags
         conditions = [Message.content.contains(f"#{tag}") for tag in tags]
         query = query.filter(or_(*conditions))
-        
+    
     if search:
+        # Case-insensitive search in content
         query = query.filter(Message.content.ilike(f"%{search}%"))
-        
+    
+    # Order and limit
     query = query.order_by(desc(Message.created_at)).limit(30)
-        
+    
+    # Execute query
     result = await db.execute(query)
     rows = result.scalars().all()
     
-    messages = [format_message_recursive_with_star(msg) for msg in rows]
-        
+    # Format messages with star status
+    messages = [format_message_recursive(msg, starred_ids) for msg in rows]
+    
+    # Build query string for links
     tags_query = "&".join([f"tags={t}" for t in tags]) if tags else ""
     if search:
         tags_query += f"&search={search}"
-        
+    
     return templates.TemplateResponse("partials/feed_container.html", {
         "request": request,
         "messages": messages,
@@ -395,35 +564,64 @@ async def get_feed_container(request: Request, tags: list[str] = Query(None), se
         "tags_query": tags_query
     })
 
+
 @router.get("/stream")
-async def stream_messages(request: Request, tags: list[str] = Query(None), search: str = Query(None)):
+async def stream_messages(
+    request: Request,
+    tags: list[str] = Query(None),
+    search: str = Query(None)
+):
+    """
+    Server-Sent Events stream for real-time message updates.
+    
+    This creates a persistent connection that pushes new messages to the
+    client as they are posted. Uses Redis pub/sub for scalability.
+    
+    Filters are applied client-side for efficiency - all messages are
+    sent, but only matching ones are displayed.
+    
+    Args:
+        request: FastAPI request (used to detect disconnection)
+        tags: List of hashtags to filter by
+        search: Search term to filter by
+        
+    Yields:
+        Server-sent events with HTML for new messages
+    """
     async def event_generator():
-        # Stream new messages
+        """
+        Async generator that yields SSE events for new messages.
+        
+        Subscribes to Redis channel and formats/filters messages as they arrive.
+        """
+        # Subscribe to Redis pub/sub channel
         async for message in subscribe_channel(CHANNEL):
+            # Check if client disconnected
             if await request.is_disconnected():
                 break
             
-            # Message is a JSON string from Redis
+            # Parse message data from JSON
             data = json.loads(message)
             
-            # Filter by tags if present
+            # Apply filters
             if tags:
-                # Show message if it contains ANY of the selected tags
+                # Show only if message contains ANY selected tag
                 if not any(f"#{t}" in data["content"] for t in tags):
                     continue
-                    
-            # Filter by search term if present
+            
             if search:
+                # Show only if message contains search term
                 if search.lower() not in data["content"].lower():
                     continue
             
-            # Render template
+            # Format timestamp
             try:
                 dt = datetime.fromisoformat(data["created_at"])
                 formatted_time = dt.strftime("%H:%M")
             except:
                 formatted_time = data["created_at"]
 
+            # Render message HTML from template
             rendered_html = templates.get_template("partials/feed_item.html").render(
                 content=linkify_content(data["content"]),
                 created_at=formatted_time,
@@ -432,14 +630,11 @@ async def stream_messages(request: Request, tags: list[str] = Query(None), searc
                 replies=[]
             )
             
-            # If it's a reply, use OOB swap to append to the parent's reply list
+            # Handle replies with out-of-band (OOB) swapping
             parent_id = data.get("parent_id")
             if parent_id:
-                # Wrap in a div that targets the parent's replies container
-                # We use hx-swap-oob="beforeend:#replies-{parent_id}"
-                # Note: HTMX OOB usually replaces by ID. To append, we might need a different approach or use the extended syntax.
-                # Let's try the extended syntax: hx-swap-oob="beforeend:#replies-{parent_id}"
-                # Also include a script to expand the replies and show the button
+                # For replies, wrap HTML with HTMX OOB swap directive
+                # This appends the reply to the parent's reply list
                 script = f"""
                 <script>
                     (function() {{
@@ -457,36 +652,42 @@ async def stream_messages(request: Request, tags: list[str] = Query(None), searc
                 """
                 rendered_html = f'<div hx-swap-oob="beforeend:#replies-{parent_id}">{rendered_html}</div>{script}'
             
+            # Yield SSE event with HTML data
             yield {"data": rendered_html}
 
+    # Return EventSourceResponse for SSE
     return EventSourceResponse(event_generator())
 
-@router.get("/history")
-async def get_history(request: Request, cursor: int = None, tags: list[str] = Query(None), search: str = Query(None), db: AsyncSession = Depends(get_db)):
-    if not cursor:
-        return "" 
-        
-    # Recursive function to format messages
-    from sqlalchemy import inspect
-    def format_message_recursive(msg):
-        try:
-            formatted_time = msg.created_at.strftime("%H:%M")
-        except:
-            formatted_time = str(msg.created_at)
-            
-        replies = []
-        # Check if 'replies' is loaded to avoid MissingGreenlet error
-        if "replies" not in inspect(msg).unloaded:
-            replies = [format_message_recursive(reply) for reply in msg.replies]
-            
-        return {
-            "id": msg.id,
-            "content": linkify_content(msg.content),
-            "created_at": formatted_time,
-            "author": msg.user.email if msg.user else "Unknown",
-            "replies": replies
-        }
 
+@router.get("/history")
+async def get_history(
+    request: Request,
+    cursor: int = None,
+    tags: list[str] = Query(None),
+    search: str = Query(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get older messages for infinite scroll pagination.
+    
+    This loads messages older than the cursor ID, allowing users
+    to scroll back through message history.
+    
+    Args:
+        request: FastAPI request
+        cursor: ID of oldest message currently displayed (pagination cursor)
+        tags: List of hashtags to filter by
+        search: Search term to filter by
+        db: Database session
+        
+    Returns:
+        Rendered HTML partial with older messages
+    """
+    if not cursor:
+        # No cursor = no more messages to load
+        return ""
+    
+    # Build query similar to container, but filter by ID < cursor
     query = select(Message).options(
         selectinload(Message.user),
         selectinload(Message.replies).selectinload(Message.user),
@@ -495,22 +696,28 @@ async def get_history(request: Request, cursor: int = None, tags: list[str] = Qu
         selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user)
     ).filter(Message.parent_id == None).filter(Message.id < cursor)
     
+    # Apply same filters as container
     if tags:
         conditions = [Message.content.contains(f"#{tag}") for tag in tags]
         query = query.filter(or_(*conditions))
-        
+    
     if search:
         query = query.filter(Message.content.ilike(f"%{search}%"))
-        
+    
+    # Order and limit
     query = query.order_by(desc(Message.created_at)).limit(30)
-        
+    
+    # Execute query
     result = await db.execute(query)
     rows = result.scalars().all()
     
+    # Format messages
     messages = [format_message_recursive(msg) for msg in rows]
-        
+    
+    # Calculate next cursor (ID of last message)
     next_cursor = messages[-1]["id"] if messages else None
     
+    # Build query string
     tags_query = "&".join([f"tags={t}" for t in tags]) if tags else ""
     if search:
         tags_query += f"&search={search}"
@@ -523,4 +730,3 @@ async def get_history(request: Request, cursor: int = None, tags: list[str] = Qu
         "search": search,
         "tags_query": tags_query
     })
-
