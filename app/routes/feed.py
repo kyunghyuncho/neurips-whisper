@@ -79,6 +79,7 @@ def format_message_recursive(msg, starred_ids=None):
         "content": linkify_content(msg.content),  # Convert URLs and hashtags to links
         "created_at": formatted_time,
         "author": msg.user.email if msg.user else "Unknown",
+        "user_id": msg.user_id if msg.user else None,
         "replies": replies  # Nested list of formatted reply dictionaries
     }
     
@@ -162,6 +163,7 @@ async def post_message(
         "content": message.content,
         "created_at": message.created_at.isoformat(),
         "user_email": user.email,
+        "user_id": user.id,
         "parent_id": message.parent_id
     }
     await publish_message(CHANNEL, data)
@@ -235,6 +237,57 @@ async def star_message(
     }, headers={"HX-Trigger": "updateMyMessages"})  # Trigger update of "My Messages" panel
 
 
+@router.delete("/message/{message_id}")
+async def delete_message(
+    message_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a message (Super User only).
+    """
+    if not getattr(user, "is_superuser", False):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    result = await db.execute(select(Message).filter(Message.id == message_id))
+    message = result.scalars().first()
+    
+    if message:
+        await db.delete(message)
+        await db.commit()
+        
+    return ""
+
+
+@router.post("/ban/{user_id}")
+async def ban_user(
+    user_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Ban a user and delete their account (Super User only).
+    """
+    if not getattr(user, "is_superuser", False):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Get target user
+    result = await db.execute(select(User).filter(User.id == user_id))
+    target_user = result.scalars().first()
+    
+    if target_user:
+        # Add to blacklist
+        from app.models import BlacklistedEmail
+        blacklist_entry = BlacklistedEmail(email=target_user.email, reason="Banned by superuser")
+        db.add(blacklist_entry)
+        
+        # Delete user (cascades to messages)
+        await db.delete(target_user)
+        await db.commit()
+        
+    return "User banned"
+
+
 @router.get("/my_messages")
 async def get_my_messages(
     request: Request,
@@ -280,39 +333,103 @@ async def get_my_messages(
     )
     user_posts = posts_result.scalars().all()
     
-    # Merge and deduplicate messages
+    # Convert to list to avoid side effects and ensure sortability
+    starred_messages = list(starred_messages)
+    
+    # Sort both lists by creation time (newest first)
+    user_posts.sort(key=lambda x: x.created_at, reverse=True)
+    starred_messages.sort(key=lambda x: x.created_at, reverse=True)
+    
+    # Helper to format a list of messages
+    def format_list(msgs, starred_set):
+        formatted = []
+        for msg in msgs:
+            try:
+                formatted_time = msg.created_at.strftime("%H:%M")
+            except:
+                formatted_time = str(msg.created_at)
+            
+            formatted.append({
+                "id": msg.id,
+                "content": linkify_content(msg.content),
+                "created_at": formatted_time,
+                "author": msg.user.email if msg.user else "Unknown",
+                "is_starred": msg.id in starred_set
+            })
+        return formatted
+
     starred_ids = {m.id for m in starred_messages}
-    all_messages = []
-    seen_ids = set()
-    
-    for msg in user_posts + starred_messages:
-        if msg.id not in seen_ids:
-            all_messages.append(msg)
-            seen_ids.add(msg.id)
-    
-    # Sort by creation time (newest first)
-    all_messages.sort(key=lambda x: x.created_at, reverse=True)
-    
-    # Format messages for template
-    formatted_messages = []
-    for msg in all_messages:
-        try:
-            formatted_time = msg.created_at.strftime("%H:%M")
-        except:
-            formatted_time = str(msg.created_at)
-        
-        formatted_messages.append({
-            "id": msg.id,
-            "content": linkify_content(msg.content),
-            "created_at": formatted_time,
-            "author": msg.user.email if msg.user else "Unknown",
-            "is_starred": msg.id in starred_ids
-        })
     
     return templates.TemplateResponse("partials/my_messages.html", {
         "request": request,
-        "messages": formatted_messages
+        "my_messages": format_list(user_posts, starred_ids),
+        "starred_messages": format_list(starred_messages, starred_ids),
+        "user": user
     })
+
+
+@router.get("/download")
+async def download_data(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download user data as JSON.
+    
+    Regular users: Download their own posts and starred messages.
+    Superusers: Download all messages in the system.
+    """
+    data = {}
+    
+    # Helper to serialize message list
+    def serialize_messages(msgs):
+        serialized = []
+        for msg in msgs:
+            serialized.append({
+                "id": msg.id,
+                "content": msg.content,
+                "created_at": msg.created_at.isoformat(),
+                "author_email": msg.user.email if msg.user else "Unknown",
+                "parent_id": msg.parent_id
+            })
+        return serialized
+
+    if getattr(user, "is_superuser", False):
+        # Superuser: Download everything
+        query = select(Message).options(selectinload(Message.user)).order_by(Message.created_at)
+        result = await db.execute(query)
+        all_messages = result.scalars().all()
+        data["all_messages"] = serialize_messages(all_messages)
+    else:
+        # Regular user: My posts + Starred
+        # 1. My posts
+        my_posts_query = select(Message).filter(Message.user_id == user.id).options(selectinload(Message.user)).order_by(Message.created_at)
+        result = await db.execute(my_posts_query)
+        my_posts = result.scalars().all()
+        data["my_messages"] = serialize_messages(my_posts)
+        
+        # 2. Starred messages
+        # Need to fetch user with starred_messages loaded
+        user_result = await db.execute(
+            select(User)
+            .filter(User.id == user.id)
+            .options(selectinload(User.starred_messages).selectinload(Message.user))
+        )
+        user_with_stars = user_result.scalars().first()
+        starred = user_with_stars.starred_messages if user_with_stars else []
+        # Sort starred by created_at
+        starred = sorted(starred, key=lambda x: x.created_at)
+        data["starred_messages"] = serialize_messages(starred)
+
+    # Return as JSON file download
+    from fastapi.responses import Response
+    json_content = json.dumps(data, indent=2)
+    
+    return Response(
+        content=json_content,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=neurips_whisper_data.json"}
+    )
 
 
 @router.get("/thread/{message_id}")
@@ -335,6 +452,9 @@ async def get_thread(
     Returns:
         Rendered thread view HTML with the full conversation
     """
+    # Get current user for admin controls
+    current_user = await get_optional_user(request, db)
+    
     # Find the root message by traversing up the parent chain
     current_id = message_id
     root_id = current_id
@@ -391,6 +511,7 @@ async def get_thread(
             "content": linkify_content(msg.content),
             "created_at": formatted_time,
             "author": msg.user.email if msg.user else "Unknown",
+            "user_id": msg.user_id if msg.user else None,
             "replies": replies,
             "is_focused": msg.id == message_id  # Mark the requested message
         }
@@ -399,7 +520,8 @@ async def get_thread(
     
     return templates.TemplateResponse("partials/thread_view.html", {
         "request": request,
-        "message": formatted_root
+        "message": formatted_root,
+        "user": current_user
     })
 
 
@@ -561,7 +683,8 @@ async def get_feed_container(
         "messages": messages,
         "tags": tags,
         "search": search,
-        "tags_query": tags_query
+        "tags_query": tags_query,
+        "user": current_user
     })
 
 
@@ -569,7 +692,8 @@ async def get_feed_container(
 async def stream_messages(
     request: Request,
     tags: list[str] = Query(None),
-    search: str = Query(None)
+    search: str = Query(None),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Server-Sent Events stream for real-time message updates.
@@ -584,10 +708,14 @@ async def stream_messages(
         request: FastAPI request (used to detect disconnection)
         tags: List of hashtags to filter by
         search: Search term to filter by
+        db: Database session
         
     Yields:
         Server-sent events with HTML for new messages
     """
+    # Get current user for admin controls
+    current_user = await get_optional_user(request, db)
+
     async def event_generator():
         """
         Async generator that yields SSE events for new messages.
@@ -627,7 +755,9 @@ async def stream_messages(
                 created_at=formatted_time,
                 author=data.get("user_email", "Anonymous User"),
                 id=data["id"],
-                replies=[]
+                user_id=data.get("user_id"),
+                replies=[],
+                user=current_user
             )
             
             # Handle replies with out-of-band (OOB) swapping
@@ -687,6 +817,20 @@ async def get_history(
         # No cursor = no more messages to load
         return ""
     
+    # Get current user to check starred messages (optional)
+    current_user = await get_optional_user(request, db)
+    starred_ids = set()
+    
+    if current_user:
+        # Fetch user with starred messages relationship
+        user_result = await db.execute(
+            select(User)
+            .filter(User.id == current_user.id)
+            .options(selectinload(User.starred_messages))
+        )
+        current_user = user_result.scalars().first()
+        starred_ids = {msg.id for msg in current_user.starred_messages}
+    
     # Build query similar to container, but filter by ID < cursor
     query = select(Message).options(
         selectinload(Message.user),
@@ -712,7 +856,7 @@ async def get_history(
     rows = result.scalars().all()
     
     # Format messages
-    messages = [format_message_recursive(msg) for msg in rows]
+    messages = [format_message_recursive(msg, starred_ids) for msg in rows]
     
     # Calculate next cursor (ID of last message)
     next_cursor = messages[-1]["id"] if messages else None
@@ -728,5 +872,6 @@ async def get_history(
         "next_cursor": next_cursor,
         "tags": tags,
         "search": search,
-        "tags_query": tags_query
+        "tags_query": tags_query,
+        "user": current_user
     })

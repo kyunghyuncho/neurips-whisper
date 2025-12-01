@@ -24,6 +24,7 @@ from app.database import engine
 from app.models import Base, Message, User
 from app.services.auth import verify_token
 from app.database import get_db
+from app.dependencies import get_optional_user
 from app.utils.text import linkify_content
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -91,6 +92,7 @@ async def root(
     request: Request,
     tags: list[str] = Query(None),  # Optional hashtag filter: ?tags=ml&tags=neurips
     msg: int = None,  # Optional message ID to focus/highlight: ?msg=123
+    user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -106,52 +108,59 @@ async def root(
         request: FastAPI request object (needed for templates)
         tags: List of hashtags to filter by (optional)
         msg: Message ID to highlight in a modal (optional)
+        user: Authenticated user (optional)
         db: Database session (injected by FastAPI)
         
     Returns:
         Rendered HTML template with message data
     """
-    # Check if user is authenticated by looking for JWT in cookie
-    user = None
-    token = request.cookies.get("access_token")
-    if token:
-        # Token format is "Bearer <token>" per OAuth 2.0 standard
-        try:
-            scheme, _, param = token.partition(" ")
-            if scheme.lower() == "bearer":
-                payload = verify_token(param)
-                if payload:
-                    # Extract email from JWT subject claim
-                    user = payload.get("sub")
-        except Exception:
-            # Token verification failed - user remains None
-            pass
-    
+    starred_ids = set()
+    if user:
+        # Fetch user with starred messages relationship
+        # We need to re-fetch because get_optional_user might not have loaded relationships
+        # or we want to be sure we have the latest data
+        user_result = await db.execute(
+            select(User)
+            .filter(User.id == user.id)
+            .options(selectinload(User.starred_messages))
+        )
+        user_obj = user_result.scalars().first()
+        if user_obj:
+            user = user_obj # Update user object with loaded relationships
+            starred_ids = {m.id for m in user.starred_messages}
+
     # Fetch focused message if msg parameter is provided
     # This is used to show a specific message in a modal/popup
     focused_message = None
     if msg:
-        # Join with User table to get author information
-        result = await db.execute(
-            select(Message, User)
-            .join(User)
-            .filter(Message.id == msg)
-        )
-        row = result.first()
-        if row:
-            message, msg_user = row
-            # Format timestamp for display (HH:MM format)
+        # Fetch the complete thread with all relationships loaded
+        # This is similar to what /feed/thread/ does but for server-side rendering
+        query = select(Message).options(
+            selectinload(Message.user),
+            selectinload(Message.replies).selectinload(Message.user),
+            selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
+            selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
+            selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user)
+        ).filter(Message.id == msg)
+        
+        result = await db.execute(query)
+        message = result.scalars().first()
+        
+        if message:
+            # Inline formatting for focused message
             try:
                 formatted_time = message.created_at.strftime("%H:%M")
             except:
                 formatted_time = str(message.created_at)
             
-            # Build focused message dictionary
+            # Build focused message dictionary with all necessary fields
             focused_message = {
                 "id": message.id,
-                "content": linkify_content(message.content),  # Convert URLs to clickable links
+                "content": linkify_content(message.content),
                 "created_at": formatted_time,
-                "author": msg_user.email if msg_user else "Unknown"
+                "author": message.user.email if message.user else "Unknown",
+                "user_id": message.user_id if message.user else None,
+                "is_starred": message.id in starred_ids
             }
 
     # Recursive helper function to format messages with their reply threads
@@ -188,7 +197,9 @@ async def root(
             "content": linkify_content(msg.content),  # Make URLs clickable
             "created_at": formatted_time,
             "author": msg.user.email if msg.user else "Unknown",
-            "replies": replies  # Nested list of reply dictionaries
+            "replies": replies,  # Nested list of reply dictionaries
+            "is_starred": msg.id in starred_ids,
+            "user_id": msg.user_id if msg.user else None
         }
 
     # Build query for main feed messages
@@ -229,7 +240,7 @@ async def root(
     # Render template with all the data
     return templates.TemplateResponse("index.html", {
         "request": request,  # Required by Jinja2Templates
-        "user": user,  # Logged-in user email or None
+        "user": user,  # Logged-in user object or None
         "tags": tags,  # List of active hashtag filters
         "tags_query": tags_query,  # Query string for hashtag links
         "messages": messages,  # Formatted message list with nested replies

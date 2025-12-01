@@ -89,6 +89,15 @@ async def login(
             detail="Please use your institutional or company email"
         )
 
+    # Check if email is blacklisted
+    from app.models import BlacklistedEmail
+    blacklisted = await db.execute(select(BlacklistedEmail).filter(BlacklistedEmail.email == email))
+    if blacklisted.scalars().first():
+        raise HTTPException(
+            status_code=403,
+            detail="This email address has been banned."
+        )
+
     # Check if user exists, create if not
     result = await db.execute(select(User).filter(User.email == email))
     user = result.scalars().first()
