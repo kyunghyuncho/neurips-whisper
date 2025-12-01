@@ -49,6 +49,15 @@
             </div>
 
             <div class="feed-layout">
+                <div class="left-sidebar">
+                    <div id="my-messages-section">
+                        <h3>My Messages</h3>
+                        <div hx-get="/feed/my_messages" hx-trigger="load, updateMyMessages from:body">
+                            <div class="htmx-indicator">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="feed-main">
                     <div class="search-bar" style="margin-bottom: 1rem;">
                         <input type="text" name="search" placeholder="Search messages..." class="form-control"
@@ -64,7 +73,6 @@
                         style="color: #ef4444; margin-bottom: 0.5rem; font-size: 0.875rem; display: none;">
                     </div>
                     <form hx-post="/feed/post" hx-swap="none">
-                        <input type="hidden" name="user_id" value="1"> <!-- Mock user ID -->
                         <textarea name="content" rows="3" placeholder="What's happening?" maxlength="140"
                             required></textarea>
                         <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">
@@ -73,9 +81,11 @@
                     </form>
                 </div>
 
-                <div class="hashtag-sidebar" hx-get="/feed/hashtags{% if tags_query %}?{{ tags_query }}{% endif %}"
-                    hx-trigger="load, every 60s, updateHashtags from:body">
-                    <div class="htmx-indicator">Loading trends...</div>
+                <div class="hashtag-sidebar">
+                    <div hx-get="/feed/hashtags{% if tags_query %}?{{ tags_query }}{% endif %}"
+                        hx-trigger="load, every 60s, updateHashtags from:body">
+                        <div class="htmx-indicator">Loading trends...</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -105,20 +115,16 @@
 
     <!-- Message Modal -->
     <div id="message-modal" class="modal-overlay {% if focused_message %}active{% endif %}">
-        <div class="modal">
+        <div class="modal" style="max-width: 800px; width: 90%;">
             <div id="message-modal-content">
                 {% if focused_message %}
+                <!-- Initial render for focused message (deep link) -->
+                <!-- We should probably fetch the thread here too via HTMX trigger if possible, or render it server side -->
+                <!-- For now, just show content -->
                 {{ focused_message.content | safe }}
                 {% endif %}
             </div>
-            <div id="message-modal-meta">
-                <div>
-                    <span id="message-modal-author">{% if focused_message %}{{ focused_message.author }}{% endif
-                        %}</span>
-                    <span style="margin: 0 0.5rem;">•</span>
-                    <span id="message-modal-timestamp">{% if focused_message %}{{ focused_message.created_at }}{% endif
-                        %}</span>
-                </div>
+            <div id="message-modal-meta" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
                 <button class="copy-link-btn" onclick="copyPermalink()">
                     <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -137,18 +143,22 @@
     <script>
         let currentMessageId = {% if focused_message %}{ { focused_message.id } } {% else %} null{% endif %};
 
-        function openMessageModal(element) {
-            const content = element.querySelector('.feed-content').innerHTML;
-            const author = element.dataset.author;
-            const timestamp = element.dataset.timestamp;
-            const id = element.dataset.id;
+        // If there is a focused message on load, fetch the thread
+        {% if focused_message %}
+        document.addEventListener('DOMContentLoaded', function () {
+            htmx.ajax('GET', '/feed/thread/{{ focused_message.id }}', '#message-modal-content');
+        });
+        {% endif %}
 
-            document.getElementById('message-modal-content').innerHTML = content;
-            document.getElementById('message-modal-author').textContent = author;
-            document.getElementById('message-modal-timestamp').textContent = timestamp;
+        function openMessageModal(element) {
+            const id = element.dataset.id;
             currentMessageId = id;
 
+            document.getElementById('message-modal-content').innerHTML = '<div class="htmx-indicator">Loading thread...</div>';
             document.getElementById('message-modal').classList.add('active');
+
+            // Fetch thread
+            htmx.ajax('GET', '/feed/thread/' + id, '#message-modal-content');
 
             // Update URL without reload
             const url = new URL(window.location);

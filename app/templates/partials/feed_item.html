@@ -1,6 +1,6 @@
 <div class="feed-item" onclick="openMessageModal(this)" data-id="{{ id }}" data-author="{{ author }}"
     data-timestamp="{{ created_at }}">
-    <div class="feed-header">
+    <div class="feed-header" style="display: flex; align-items: center;">
         <div class="feed-avatar">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -11,8 +11,76 @@
             <span class="feed-author">{{ author }}</span>
             <span class="feed-timestamp">{{ created_at }}</span>
         </div>
+        <div style="margin-left: auto;">
+            {% include "partials/star_button.html" %}
+        </div>
     </div>
     <div class="feed-content">
         {{ content | safe }}
     </div>
+
+    <div class="feed-actions" style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+        <button onclick="event.stopPropagation(); toggleReplyForm('{{ id }}')" class="action-btn">Reply</button>
+
+        <button id="reply-toggle-{{ id }}" onclick="event.stopPropagation(); toggleReplies('{{ id }}')"
+            class="action-btn" style="{% if not replies or expanded %}display: none;{% endif %}">
+            {% if replies %}
+            Show {{ replies|length }} replies
+            {% else %}
+            Show replies
+            {% endif %}
+        </button>
+
+        {% if expanded and replies %}
+        <button onclick="event.stopPropagation(); toggleReplies('{{ id }}')" class="action-btn">Hide replies</button>
+        {% endif %}
+    </div>
+
+    <div id="reply-form-{{ id }}" style="display: none; margin-top: 0.5rem; margin-left: 1rem;"
+        onclick="event.stopPropagation()">
+        <form hx-post="/feed/post" hx-swap="none" onsubmit="toggleReplyForm('{{ id }}')">
+            <input type="hidden" name="parent_id" value="{{ id }}">
+            <textarea name="content" rows="2" class="w-full p-2 border rounded text-sm"
+                placeholder="Write a reply..."></textarea>
+            <button type="submit" class="mt-1 px-3 py-1 bg-indigo-600 text-white text-xs rounded">Post Reply</button>
+        </form>
+    </div>
+
+    <div id="replies-{{ id }}" class="feed-replies"
+        style="{% if not expanded %}display: none;{% endif %} margin-left: 1.5rem; border-left: 2px solid #e5e7eb; padding-left: 0.5rem; margin-top: 0.5rem;">
+        {% if replies %}
+        {% for reply in replies %}
+        {% with content=reply.content, created_at=reply.created_at, author=reply.author, id=reply.id,
+        replies=reply.replies, is_starred=reply.is_starred, expanded=expanded %}
+        {% include "partials/feed_item.html" %}
+        {% endwith %}
+        {% endfor %}
+        {% endif %}
+    </div>
 </div>
+
+<script>
+    function toggleReplyForm(id) {
+        const form = document.getElementById('reply-form-' + id);
+        if (form.style.display === 'none') {
+            form.style.display = 'block';
+        } else {
+            form.style.display = 'none';
+        }
+    }
+
+    function toggleReplies(id) {
+        const replies = document.getElementById('replies-' + id);
+        const btn = document.getElementById('reply-toggle-' + id);
+
+        if (replies.style.display === 'none') {
+            replies.style.display = 'block';
+            btn.textContent = 'Hide replies';
+        } else {
+            replies.style.display = 'none';
+            // Count children div.feed-item
+            const count = replies.querySelectorAll('.feed-item').length;
+            btn.textContent = 'Show ' + count + ' replies';
+        }
+    }
+</script>

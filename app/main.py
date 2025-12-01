@@ -12,6 +12,7 @@ from app.utils.text import linkify_content
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import desc, or_
+from sqlalchemy.orm import selectinload
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -69,7 +70,34 @@ async def root(request: Request, tags: list[str] = Query(None), msg: int = None,
             }
 
     # Fetch latest messages
-    query = select(Message, User).join(User)
+    # Recursive function to format messages
+    from sqlalchemy import inspect
+    def format_message_recursive(msg):
+        try:
+            formatted_time = msg.created_at.strftime("%H:%M")
+        except:
+            formatted_time = str(msg.created_at)
+            
+        replies = []
+        # Check if 'replies' is loaded to avoid MissingGreenlet error
+        if "replies" not in inspect(msg).unloaded:
+            replies = [format_message_recursive(reply) for reply in msg.replies]
+            
+        return {
+            "id": msg.id,
+            "content": linkify_content(msg.content),
+            "created_at": formatted_time,
+            "author": msg.user.email if msg.user else "Unknown",
+            "replies": replies
+        }
+
+    query = select(Message).options(
+        selectinload(Message.user),
+        selectinload(Message.replies).selectinload(Message.user),
+        selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
+        selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
+        selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user)
+    ).filter(Message.parent_id == None)
     
     if tags:
         conditions = [Message.content.contains(f"#{tag}") for tag in tags]
@@ -78,21 +106,9 @@ async def root(request: Request, tags: list[str] = Query(None), msg: int = None,
     query = query.order_by(desc(Message.created_at)).limit(30)
         
     result = await db.execute(query)
-    rows = result.all()
+    rows = result.scalars().all()
     
-    messages = []
-    for message, msg_user in rows:
-        try:
-            formatted_time = message.created_at.strftime("%H:%M")
-        except:
-            formatted_time = str(message.created_at)
-            
-        messages.append({
-            "id": message.id,
-            "content": linkify_content(message.content),
-            "created_at": formatted_time,
-            "author": msg_user.email if msg_user else "Unknown"
-        })
+    messages = [format_message_recursive(msg) for msg in rows]
             
     tags_query = "&".join([f"tags={t}" for t in tags]) if tags else ""
     

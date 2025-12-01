@@ -15,7 +15,8 @@
     <div hx-ext="sse" sse-connect="/feed/stream{% if tags_query %}?{{ tags_query }}{% endif %}" sse-swap="message"
         hx-swap="afterbegin" class="feed-container">
         {% for msg in messages %}
-        {% with content=msg.content, created_at=msg.created_at, author=msg.author, id=msg.id %}
+        {% with content=msg.content, created_at=msg.created_at, author=msg.author, id=msg.id, replies=msg.replies,
+        is_starred=msg.is_starred %}
         {% include "partials/feed_item.html" %}
         {% endwith %}
         {% endfor %}

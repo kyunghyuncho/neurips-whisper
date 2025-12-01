@@ -1,0 +1,14 @@
+<div id="my-messages-list" style="max-height: 400px; overflow-y: auto;">
+    {% if messages %}
+    {% for message in messages %}
+    {% with content=message.content, created_at=message.created_at, author=message.author, id=message.id,
+    replies=message.replies, is_starred=message.is_starred %}
+    {% include "partials/feed_item.html" %}
+    {% endwith %}
+    {% endfor %}
+    {% else %}
+    <div style="padding: 1rem; color: #6b7280; text-align: center;">
+        No messages yet. Star some posts or write your own!
+    </div>
+    {% endif %}
+</div>
