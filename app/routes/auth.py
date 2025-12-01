@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.database import get_db
@@ -7,6 +8,7 @@ from app.services.auth import create_access_token, verify_token
 from app.services.email import send_magic_link
 from app.utils.validators import is_institutional_email
 from app.config import settings
+from app.templating import templates
 from pydantic import EmailStr
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -44,7 +46,7 @@ async def login(
     
     send_magic_link(email, link)
     
-    return {"message": "Magic link sent to your email"}
+    return templates.TemplateResponse("partials/magic_link_sent.html", {"request": request, "email": email})
 
 @router.get("/verify")
 async def verify(token: str):
@@ -56,6 +58,19 @@ async def verify(token: str):
     if not email:
         raise HTTPException(status_code=400, detail="Invalid token")
         
-    # In a real app, we would set a session cookie here
-    # For now, we just return a success message or redirect
-    return {"message": "Login successful", "email": email}
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {token}",
+        httponly=True,
+        max_age=1800,  # 30 minutes
+        samesite="lax",
+        secure=False  # Set to True in production with HTTPS
+    )
+    return response
+
+@router.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie("access_token")
+    return response
