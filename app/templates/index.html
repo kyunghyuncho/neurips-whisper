@@ -71,8 +71,14 @@
                         style="color: #ef4444; margin-bottom: 0.5rem; font-size: 0.875rem; display: none;">
                     </div>
                     <form hx-post="/feed/post" hx-swap="none" style="margin-bottom: 1rem;">
-                        <textarea name="content" rows="3" placeholder="What's happening?" maxlength="140"
-                            required></textarea>
+                        <div style="position: relative;">
+                            <textarea id="post-content" name="content" rows="3" placeholder="What's happening?"
+                                maxlength="140" required style="width: 100%;"
+                                oninput="updateCharCounter(this)"></textarea>
+                            <div id="char-counter"
+                                style="text-align: right; font-size: 0.8rem; color: #666; margin-top: 0.25rem;">0/140
+                            </div>
+                        </div>
                         <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">
                             Post
                         </button>
@@ -224,9 +230,19 @@
                 if (evt.detail.successful) {
                     document.getElementById('post-error').style.display = 'none';
                     evt.target.reset();
+                    // Reset character counter
+                    const counter = document.getElementById('char-counter');
+                    if (counter) counter.textContent = '0/140';
                 }
             }
         });
+        function updateCharCounter(textarea) {
+            const maxLength = textarea.getAttribute('maxlength');
+            const currentLength = textarea.value.length;
+            const counter = document.getElementById('char-counter');
+            counter.textContent = `${currentLength}/${maxLength}`;
+        }
+
         function toggleHashtag(tag) {
             const url = new URL(window.location);
             const params = new URLSearchParams(url.search);

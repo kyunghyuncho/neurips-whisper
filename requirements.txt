@@ -11,3 +11,4 @@ email-validator
 python-jose[cryptography]
 sse-starlette
 greenlet
+slowapi

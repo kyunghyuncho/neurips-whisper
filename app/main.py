@@ -30,6 +30,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import desc, or_
 from sqlalchemy.orm import selectinload
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from app.limiter import limiter
 
 
 @asynccontextmanager
@@ -72,6 +76,11 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI application instance
 app = FastAPI(title="NeurIPS Whisper", lifespan=lifespan)
+
+# Initialize Rate Limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Mount static files (CSS, JS, images) at /static URL
 # Files in app/static/ will be accessible at /static/...
