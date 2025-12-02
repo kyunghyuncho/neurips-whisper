@@ -7,7 +7,7 @@ easy to manage different configurations for development and production.
 """
 
 from pydantic_settings import BaseSettings
-
+from pydantic import field_validator
 
 class Settings(BaseSettings):
     """
@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     # Comma-separated list of super user emails
     # These users have admin privileges (delete messages, ban users)
     SUPER_USERS: str = ""
+
+    @field_validator("DATABASE_URL")
+    def validate_database_url(cls, value):
+        if not value:
+            return ""
+        if not value.startswith("postgresql+asyncpg://"):
+            return value.replace("postgres://", "postgresql+asyncpg://", 1)
+        return value
 
     class Config:
         """
