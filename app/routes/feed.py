@@ -168,6 +168,14 @@ async def post_message(
     await redis_client.zremrangebyscore("term_activity", "-inf", cutoff)
 
 
+    # Get parent author ID if this is a reply
+    parent_author_id = None
+    if parent_id:
+        parent_msg = await db.execute(select(Message).filter(Message.id == parent_id))
+        parent = parent_msg.scalars().first()
+        if parent:
+            parent_author_id = parent.user_id
+
     # Broadcast message to real-time subscribers via Redis pub/sub
     data = {
         "id": message.id,
@@ -175,7 +183,8 @@ async def post_message(
         "created_at": message.created_at.isoformat(),
         "user_email": user.email,
         "user_id": user.id,
-        "parent_id": message.parent_id
+        "parent_id": message.parent_id,
+        "parent_author_id": parent_author_id
     }
     await publish_message(CHANNEL, data)
 
@@ -887,6 +896,38 @@ async def stream_messages(
             
             # Yield SSE event with HTML data
             yield {"data": rendered_html}
+
+            # Handle Notifications
+            # Don't notify the author of their own post
+            if data.get("user_id") != current_user.id if current_user else True:
+                notification_type = None
+                notification_data = {}
+                
+                # Check if this is a reply to the current user
+                parent_author_id = data.get("parent_author_id")
+                
+                if parent_author_id and current_user and parent_author_id == current_user.id:
+                    # High-level notification: Reply to my message
+                    notification_type = "new_reply"
+                    notification_data = {
+                        "title": "New Reply",
+                        "body": f"New reply from {data.get('user_email', 'Someone')}: {data['content'][:50]}...",
+                        "tag": "reply"
+                    }
+                elif not parent_author_id:
+                     # Low-level notification: New top-level message
+                    notification_type = "new_message"
+                    notification_data = {
+                        "title": "New Message",
+                        "body": f"New message from {data.get('user_email', 'Someone')}",
+                        "tag": "message"
+                    }
+                
+                if notification_type:
+                    yield {
+                        "event": "notification",
+                        "data": json.dumps(notification_data)
+                    }
 
     # Return EventSourceResponse for SSE
     return EventSourceResponse(event_generator())
