@@ -61,8 +61,8 @@ class Settings(BaseSettings):
         if not value.startswith("postgresql+asyncpg://"):
             print("Invalid database URL format. Using default.")
             print("Value: ", value)
-            print("New Value: ", value.replace("postgres://", "postgresql+asyncpg://"))
-            return value.replace("postgres://", "postgresql+asyncpg://")
+            print("New Value: ", value.replace("postgresql://", "postgresql+asyncpg://"))
+            return value.replace("postgresql://", "postgresql+asyncpg://")
         return value
 
     class Config:
