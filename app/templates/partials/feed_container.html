@@ -56,7 +56,8 @@
 
         <!-- Render initial batch of messages -->
         {% for msg in messages %}
-        {% with content=msg.content, created_at=msg.created_at, author=msg.author, id=msg.id, user_id=msg.user_id,
+        {% with content=msg.content, created_at=msg.created_at, created_at_iso=msg.created_at_iso, author=msg.author,
+        id=msg.id, user_id=msg.user_id,
         replies=msg.replies,
         is_starred=msg.is_starred, user=user %}
         {% include "partials/feed_item.html" %}

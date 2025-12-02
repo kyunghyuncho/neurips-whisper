@@ -29,7 +29,8 @@
     {% for message in starred_messages %}
     <!-- Pass message data to feed_item partial using Jinja2 'with' block -->
     <!-- hide_delete=True prevents delete button from showing in sidebar -->
-    {% with content=message.content, created_at=message.created_at, author=message.author, id=message.id,
+    {% with content=message.content, created_at=message.created_at, created_at_iso=message.created_at_iso,
+    author=message.author, id=message.id,
     user_id=message.user_id,
     replies=message.replies, is_starred=message.is_starred, user=user, hide_delete=True %}
     {% include "partials/feed_item.html" %}
@@ -44,7 +45,8 @@
         My Messages</h4>
     {% for message in my_messages %}
     <!-- Same pattern as starred messages -->
-    {% with content=message.content, created_at=message.created_at, author=message.author, id=message.id,
+    {% with content=message.content, created_at=message.created_at, created_at_iso=message.created_at_iso,
+    author=message.author, id=message.id,
     user_id=message.user_id,
     replies=message.replies, is_starred=message.is_starred, user=user, hide_delete=True %}
     {% include "partials/feed_item.html" %}
