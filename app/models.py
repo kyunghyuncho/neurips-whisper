@@ -11,7 +11,7 @@ The models demonstrate several important ORM patterns:
 - Bidirectional relationships (backrefs)
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Table, Boolean
 from sqlalchemy.orm import declarative_base, relationship, backref
 from datetime import datetime
 
@@ -130,6 +130,7 @@ class BlacklistedEmail(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+
 class AuditLog(Base):
     """
     Model for audit logs.
@@ -143,6 +144,27 @@ class AuditLog(Base):
     user_email = Column(String, index=True)  # Email of the actor
     details = Column(String, nullable=True)  # JSON or text description
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Notification(Base):
+    """
+    Model for user notifications.
+    
+    Currently used for:
+    - Replies to user's messages
+    """
+    __tablename__ = "notifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    message_id = Column(Integer, ForeignKey("messages.id"))
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", backref=backref("notifications", cascade="all, delete-orphan"))
+    message = relationship("Message")
+
 
 
 

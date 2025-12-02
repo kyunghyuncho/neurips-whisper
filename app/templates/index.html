@@ -28,6 +28,18 @@
 
     <!-- Custom CSS Styles -->
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* Unread notification highlight */
+        .unread-notification {
+            background-color: #eff6ff !important;
+            border-left: 3px solid #6366f1 !important;
+        }
+
+        /* Refresh button hover effect */
+        button[title="Refresh notifications"]:hover {
+            color: #4b5563 !important;
+        }
+    </style>
 </head>
 
 <body>
@@ -123,6 +135,12 @@
                 <!-- ========== LEFT SIDEBAR: My Messages ========== -->
                 <div class="left-sidebar">
                     <div id="my-messages-section">
+                        <!-- Notification Panel with polling and manual refresh -->
+                        <div id="notification-panel-container" hx-get="/feed/notifications" hx-trigger="load, every 30s"
+                            hx-swap="innerHTML">
+                            <div class="htmx-indicator">Loading notifications...</div>
+                        </div>
+
                         <h3>My Messages</h3>
                         <!--
                             HTMX Auto-loading Div:
@@ -539,6 +557,22 @@
             if (evt.target.id === 'notification-data') {
                 try {
                     const data = JSON.parse(evt.target.textContent);
+
+                    // Check if this is a reply to the current user
+                    // We need the current user's ID, which we can get from the page context or a data attribute
+                    // For now, let's assume we can check if parent_author_id matches
+                    // Note: In a real app, we'd probably want to pass current_user.id to JS more explicitly
+
+                    // Trigger HTMX update for notifications if it's a reply to us
+                    // The server sends "updateNotifications" in HX-Trigger header for the poster,
+                    // but for the recipient (via SSE), we need to trigger it manually here.
+                    // However, since we don't easily know our own ID here without rendering it,
+                    // we'll rely on the fact that the server *could* send a specific event for us,
+                    // or we just refresh notifications on every message (less efficient but works).
+
+                    // Better approach: Just trigger the event. The server endpoint filters by user anyway.
+                    // If we get a new message, we might as well check for notifications.
+                    document.body.dispatchEvent(new Event('updateNotifications'));
 
                     if ("Notification" in window && Notification.permission === "granted") {
                         const notification = new Notification(data.title, {

@@ -175,6 +175,16 @@ async def post_message(
         parent = parent_msg.scalars().first()
         if parent:
             parent_author_id = parent.user_id
+            
+            # Create notification if replying to someone else
+            if parent.user_id != user.id:
+                from app.models import Notification
+                notification = Notification(
+                    user_id=parent.user_id,
+                    message_id=message.id
+                )
+                db.add(notification)
+                await db.commit()
 
     # Broadcast message to real-time subscribers via Redis pub/sub
     data = {
@@ -193,7 +203,7 @@ async def post_message(
     from fastapi.responses import JSONResponse
     return JSONResponse(
         content={"message": "Message posted"},
-        headers={"HX-Trigger": json.dumps({"updateHashtags": True, "updateMyMessages": True})}
+        headers={"HX-Trigger": json.dumps({"updateHashtags": True, "updateMyMessages": True, "updateNotifications": True})}
     )
 
 
@@ -800,6 +810,79 @@ async def get_feed_container(
     })
 
 
+@router.get("/notifications")
+async def get_notifications(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get notifications for the current user.
+    """
+    from app.models import Notification
+    
+    # Fetch notifications with message loaded
+    query = select(Notification).options(
+        selectinload(Notification.message).selectinload(Message.user)
+    ).filter(
+        Notification.user_id == user.id
+    ).order_by(desc(Notification.created_at))
+    
+    result = await db.execute(query)
+    notifications = result.scalars().all()
+    
+    # Format notifications
+    formatted_notifications = []
+    for notif in notifications:
+        if not notif.message:
+            continue
+            
+        try:
+            formatted_time = notif.created_at.strftime("%H:%M")
+        except:
+            formatted_time = str(notif.created_at)
+            
+        formatted_notifications.append({
+            "id": notif.id,
+            "message_id": notif.message_id,
+            "content": notif.message.content[:50] + "..." if len(notif.message.content) > 50 else notif.message.content,
+            "author": notif.message.user.email if notif.message.user else "Unknown",
+            "created_at": formatted_time,
+            "is_read": notif.is_read
+        })
+    
+    return templates.TemplateResponse("partials/notifications.html", {
+        "request": request,
+        "notifications": formatted_notifications
+    })
+
+
+@router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Mark a notification as read.
+    """
+    from app.models import Notification
+    
+    result = await db.execute(
+        select(Notification).filter(
+            Notification.id == notification_id,
+            Notification.user_id == user.id
+        )
+    )
+    notification = result.scalars().first()
+    
+    if notification:
+        notification.is_read = True
+        await db.commit()
+        
+    return "OK"
+
+
 @router.get("/stream")
 async def stream_messages(
     request: Request,
@@ -843,6 +926,46 @@ async def stream_messages(
             # Parse message data from JSON
             data = json.loads(message)
             
+            # Handle Notifications
+            # Don't notify the author of their own post
+            if data.get("user_id") != current_user.id if current_user else True:
+                notification_type = None
+                notification_data = {}
+                
+                # Check if this is a reply to the current user
+                parent_author_id = data.get("parent_author_id")
+                
+                if parent_author_id and current_user and parent_author_id == current_user.id:
+                    # High-level notification: Reply to my message
+                    notification_type = "new_reply"
+                    notification_data = {
+                        "title": "New Reply",
+                        "body": f"New reply from {data.get('user_email', 'Someone')}: {data['content'][:50]}...",
+                        "tag": "reply"
+                    }
+                elif not parent_author_id:
+                     # Low-level notification: New top-level message
+                    notification_type = "new_message"
+                    notification_data = {
+                        "title": "New Message",
+                        "body": f"New message from {data.get('user_email', 'Someone')}",
+                        "tag": "message"
+                    }
+                
+                if notification_type:
+                    yield {
+                        "event": "notification",
+                        "data": json.dumps(notification_data)
+                    }
+                    
+                    # Also trigger notification panel refresh for replies
+                    if notification_type == "new_reply":
+                        # Send empty refresh event that HTMX will use to update the panel
+                        yield {
+                            "event": "refreshNotifications",
+                            "data": ""
+                        }
+
             # Apply filters
             if tags:
                 # Show only if message contains ANY selected tag
@@ -896,38 +1019,6 @@ async def stream_messages(
             
             # Yield SSE event with HTML data
             yield {"data": rendered_html}
-
-            # Handle Notifications
-            # Don't notify the author of their own post
-            if data.get("user_id") != current_user.id if current_user else True:
-                notification_type = None
-                notification_data = {}
-                
-                # Check if this is a reply to the current user
-                parent_author_id = data.get("parent_author_id")
-                
-                if parent_author_id and current_user and parent_author_id == current_user.id:
-                    # High-level notification: Reply to my message
-                    notification_type = "new_reply"
-                    notification_data = {
-                        "title": "New Reply",
-                        "body": f"New reply from {data.get('user_email', 'Someone')}: {data['content'][:50]}...",
-                        "tag": "reply"
-                    }
-                elif not parent_author_id:
-                     # Low-level notification: New top-level message
-                    notification_type = "new_message"
-                    notification_data = {
-                        "title": "New Message",
-                        "body": f"New message from {data.get('user_email', 'Someone')}",
-                        "tag": "message"
-                    }
-                
-                if notification_type:
-                    yield {
-                        "event": "notification",
-                        "data": json.dumps(notification_data)
-                    }
 
     # Return EventSourceResponse for SSE
     return EventSourceResponse(event_generator())
