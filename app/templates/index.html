@@ -501,6 +501,45 @@
             });
         }
 
+        /**
+         * Request notification permission on load
+         */
+        document.addEventListener('DOMContentLoaded', function () {
+            if ("Notification" in window) {
+                if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+                    Notification.requestPermission();
+                }
+            }
+        });
+
+        /**
+         * Handle incoming notification data from SSE
+         * Triggered when #notification-data is updated by HTMX
+         */
+        document.body.addEventListener('htmx:afterSwap', function (evt) {
+            if (evt.target.id === 'notification-data') {
+                try {
+                    const data = JSON.parse(evt.target.textContent);
+
+                    if ("Notification" in window && Notification.permission === "granted") {
+                        const notification = new Notification(data.title, {
+                            body: data.body,
+                            tag: data.tag,
+                            icon: '/static/favicon.ico' // Assuming favicon exists, or browser default
+                        });
+
+                        // Optional: Play sound or visual cue based on tag (low vs high level)
+                        if (data.tag === 'reply') {
+                            // High-level notification logic (e.g. keep open longer, different sound)
+                            // Browser APIs are limited here, but we can differentiate in logic
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error parsing notification data", e);
+                }
+            }
+        });
+
     </script>
 </body>
 
