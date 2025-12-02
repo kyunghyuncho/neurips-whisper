@@ -21,7 +21,8 @@
 <!-- Loop through all messages in current page -->
 {% for msg in messages %}
 <!-- Pass message data to feed_item partial -->
-{% with content=msg.content, created_at=msg.created_at, author=msg.author, id=msg.id, replies=msg.replies %}
+{% with content=msg.content, created_at=msg.created_at, author=msg.author, id=msg.id, replies=msg.replies,
+parent_author=msg.parent_author %}
 {% include "partials/feed_item.html" %}
 {% endwith %}
 {% endfor %}
@@ -31,8 +32,8 @@
 <!-- This div triggers the next page load when it becomes visible -->
 <!-- hx-trigger="revealed": Fires when element scrolls into viewport -->
 <!-- hx-swap="outerHTML": Replaces this entire div with server response -->
-<div hx-get="/feed/history?cursor={{ next_cursor }}{% if tag %}&tag={{ tag }}{% endif %}" hx-trigger="revealed"
-    hx-swap="outerHTML" class="text-center p-4 text-gray-500">
+<div hx-get="/feed/history?cursor={{ next_cursor }}&view={{ view }}{% if tags_query %}&{{ tags_query }}{% endif %}"
+    hx-trigger="revealed" hx-swap="outerHTML" class="text-center p-4 text-gray-500">
     Loading more...
 </div>
 {% endif %}

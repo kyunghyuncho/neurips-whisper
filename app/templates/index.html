@@ -55,7 +55,16 @@
 
         .ts-dropdown {
             font-size: 0.875rem !important;
+            font-size: 0.875rem !important;
             z-index: 1000 !important;
+        }
+
+        /* View Toggle Styles */
+        .toggle-btn.active {
+            background-color: white;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            font-weight: 600;
+            color: #4f46e5 !important;
         }
     </style>
     <!-- Tom Select for searchable dropdowns -->
@@ -137,7 +146,10 @@
         <div id="feed-section">
             <!-- Feed Header with Actions -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2>Live Feed</h2>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <h2>Live Feed</h2>
+                    {% include "partials/view_toggle.html" %}
+                </div>
                 <div>
                     <!-- Data download link (available to all users) -->
                     <a href="/feed/download" class="btn-link"
@@ -217,7 +229,7 @@
                         -->
                         <input type="text" name="search" placeholder="Search messages..." class="form-control"
                             style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;"
-                            hx-get="/feed/container{% if tags_query %}?{{ tags_query }}{% endif %}"
+                            hx-get="/feed/container?view={{ view }}{% if tags_query %}&{{ tags_query }}{% endif %}"
                             hx-trigger="keyup changed delay:500ms, search" hx-target="#feed-wrapper" hx-swap="outerHTML"
                             hx-push-url="true" value="{{ search or '' }}">
                     </div>
@@ -335,7 +347,22 @@
             document.getElementById('message-modal').classList.add('active');
 
             // Fetch full thread from server using HTMX
-            htmx.ajax('GET', '/feed/thread/' + id, '#message-modal-content');
+            htmx.ajax('GET', '/feed/thread/' + id, { target: '#message-modal-content', swap: 'innerHTML' }).then(() => {
+                // Scroll to focused message after content is loaded
+                setTimeout(() => {
+                    const focusedEl = document.getElementById('focused-message-el');
+                    if (focusedEl) {
+                        focusedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        // Add a temporary highlight effect
+                        focusedEl.style.transition = 'background-color 0.5s';
+                        const originalBg = focusedEl.style.backgroundColor;
+                        focusedEl.style.backgroundColor = '#e0e7ff'; // Light indigo
+                        setTimeout(() => {
+                            focusedEl.style.backgroundColor = originalBg;
+                        }, 2000);
+                    }
+                }, 100); // Small delay to ensure DOM update
+            });
 
             // Update URL to make modal shareable
             // This adds ?msg=ID to URL without triggering page reload

@@ -90,6 +90,13 @@ def format_message_recursive(msg, starred_ids=None):
     # Add star status if starred_ids set is provided
     if starred_ids is not None:
         result["is_starred"] = msg.id in starred_ids
+        
+    # Add parent info if available (for unrolled view)
+    if msg.parent_id:
+        # Check if parent relationship is loaded
+        if "parent" not in inspect(msg).unloaded and msg.parent:
+            if "user" not in inspect(msg.parent).unloaded and msg.parent.user:
+                result["parent_author"] = msg.parent.user.email
     
     return result
 
@@ -736,6 +743,7 @@ async def get_feed_container(
     request: Request,
     tags: list[str] = Query(None),
     search: str = Query(None),
+    view: str = Query("threaded"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -775,8 +783,15 @@ async def get_feed_container(
         selectinload(Message.replies).selectinload(Message.user),
         selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
         selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
-        selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user)
-    ).filter(Message.parent_id == None)  # Only top-level messages
+        selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
+        selectinload(Message.parent).selectinload(Message.user)  # Load parent for reply context
+    )
+    
+    # Filter by parent_id based on view mode
+    if view == "threaded":
+        query = query.filter(Message.parent_id == None)  # Only top-level messages
+    # If view == "unrolled", we show all messages (no parent_id filter)
+
     
     # Apply filters
     if tags:
@@ -808,6 +823,7 @@ async def get_feed_container(
         "messages": messages,
         "tags": tags,
         "search": search,
+        "view": view,
         "tags_query": tags_query,
         "user": current_user
     })
@@ -984,13 +1000,16 @@ async def stream_messages(
             try:
                 dt = datetime.fromisoformat(data["created_at"])
                 formatted_time = dt.strftime("%H:%M")
+                created_at_iso = data["created_at"]  # Keep the ISO format for frontend
             except:
                 formatted_time = data["created_at"]
+                created_at_iso = data["created_at"]
 
             # Render message HTML from template
             rendered_html = templates.get_template("partials/feed_item.html").render(
                 content=linkify_content(data["content"]),
                 created_at=formatted_time,
+                created_at_iso=created_at_iso,  # Add ISO timestamp for timezone conversion
                 author=data.get("user_email", "Anonymous User"),
                 id=data["id"],
                 user_id=data.get("user_id"),
@@ -1000,7 +1019,10 @@ async def stream_messages(
             
             # Handle replies with out-of-band (OOB) swapping
             parent_id = data.get("parent_id")
-            if parent_id:
+            
+            # In threaded view, replies are swapped into the parent's reply list
+            # In unrolled view, replies are treated as top-level items in the stream
+            if parent_id and view == "threaded":
                 # For replies, wrap HTML with HTMX OOB swap directive
                 # This appends the reply to the parent's reply list
                 script = f"""
@@ -1033,6 +1055,7 @@ async def get_history(
     cursor: int = None,
     tags: list[str] = Query(None),
     search: str = Query(None),
+    view: str = Query("threaded"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1075,8 +1098,12 @@ async def get_history(
         selectinload(Message.replies).selectinload(Message.user),
         selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
         selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
-        selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user)
-    ).filter(Message.parent_id == None).filter(Message.id < cursor)
+        selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
+        selectinload(Message.parent).selectinload(Message.user)  # Load parent for reply context
+    ).filter(Message.id < cursor)
+    
+    if view == "threaded":
+        query = query.filter(Message.parent_id == None)
     
     # Apply same filters as container
     if tags:
@@ -1110,6 +1137,7 @@ async def get_history(
         "next_cursor": next_cursor,
         "tags": tags,
         "search": search,
+        "view": view,
         "tags_query": tags_query,
         "user": current_user
     })

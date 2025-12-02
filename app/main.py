@@ -101,6 +101,7 @@ async def root(
     request: Request,
     tags: list[str] = Query(None),  # Optional hashtag filter: ?tags=ml&tags=neurips
     msg: int = None,  # Optional message ID to focus/highlight: ?msg=123
+    view: str = Query("threaded"),  # View mode: threaded vs unrolled
     user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -227,7 +228,10 @@ async def root(
         selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
         # Load fourth-level replies and their authors
         selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user)
-    ).filter(Message.parent_id == None)  # Only get top-level messages (not replies)
+    )
+    
+    if view == "threaded":
+        query = query.filter(Message.parent_id == None)  # Only get top-level messages (not replies)
     
     # Apply hashtag filtering if tags are provided
     if tags:
@@ -254,6 +258,7 @@ async def root(
         "user": user,  # Logged-in user object or None
         "tags": tags,  # List of active hashtag filters
         "tags_query": tags_query,  # Query string for hashtag links
+        "view": view,  # Current view mode
         "messages": messages,  # Formatted message list with nested replies
         "focused_message": focused_message  # Message to show in modal, if any
     })

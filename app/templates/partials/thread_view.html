@@ -16,6 +16,7 @@
 {% with content=message.content, created_at=message.created_at, created_at_iso=message.created_at_iso,
 author=message.author, id=message.id,
 user_id=message.user_id,
-replies=message.replies, is_starred=message.is_starred, expanded=True, user=user, in_modal=True %}
+replies=message.replies, is_starred=message.is_starred, expanded=True, user=user, in_modal=True,
+is_focused=message.is_focused %}
 {% include "partials/feed_item.html" %}
 {% endwith %}
