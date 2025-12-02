@@ -621,6 +621,9 @@
             }
         });
 
+        // Store TomSelect instance globally so we can access it
+        let timezoneSelector = null;
+
         /**
          * Initialize Timezone Selector
          */
@@ -662,14 +665,8 @@
                 selector.value = "UTC";
             }
 
-            // Add change listener
-            selector.addEventListener('change', function () {
-                localStorage.setItem('neurips_whisper_timezone', this.value);
-                updateLocalTimes();
-            });
-
-            // Initialize Tom Select
-            new TomSelect('#timezone-selector', {
+            // Initialize Tom Select and store the instance
+            timezoneSelector = new TomSelect('#timezone-selector', {
                 create: false,
                 sortField: {
                     field: "text",
@@ -680,6 +677,11 @@
                     item: function (data, escape) {
                         return '<div>' + escape(data.text) + '</div>';
                     }
+                },
+                onChange: function (value) {
+                    // Save to localStorage and update timestamps when timezone changes
+                    localStorage.setItem('neurips_whisper_timezone', value);
+                    updateLocalTimes();
                 }
             });
         }
@@ -688,9 +690,14 @@
          * Update all timestamps to local time
          */
         function updateLocalTimes() {
-            const selector = document.getElementById('timezone-selector');
-            // Use selected timezone or fallback to system/UTC
-            const timezone = selector && selector.value ? selector.value : Intl.DateTimeFormat().resolvedOptions().timeZone;
+            // Get timezone from TomSelect instance or fallback
+            let timezone;
+            if (timezoneSelector && timezoneSelector.getValue()) {
+                timezone = timezoneSelector.getValue();
+            } else {
+                const selector = document.getElementById('timezone-selector');
+                timezone = selector && selector.value ? selector.value : Intl.DateTimeFormat().resolvedOptions().timeZone;
+            }
 
             // Update all timestamps
             document.querySelectorAll('.local-time').forEach(el => {
@@ -698,7 +705,12 @@
                 if (!isoTimestamp) return;
 
                 try {
-                    const date = new Date(isoTimestamp);
+                    // CRITICAL FIX: Backend sends naive ISO timestamps (no 'Z' suffix)
+                    // We need to explicitly mark them as UTC by appending 'Z'
+                    // Otherwise, JavaScript interprets them as local time!
+                    const utcTimestamp = isoTimestamp.endsWith('Z') ? isoTimestamp : isoTimestamp + 'Z';
+                    const date = new Date(utcTimestamp);
+
                     // Format: "Oct 24, 12:34 PM"
                     const formatted = date.toLocaleString(undefined, {
                         timeZone: timezone,
