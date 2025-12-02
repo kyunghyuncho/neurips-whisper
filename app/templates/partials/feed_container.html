@@ -50,6 +50,10 @@
         <!-- Hidden listener for browser notifications -->
         <div sse-swap="notification" hx-swap="innerHTML" style="display:none" id="notification-data"></div>
 
+        <!-- Hidden listener for notification panel refresh -->
+        <div sse-swap="refreshNotifications" hx-swap="none" style="display:none" hx-trigger="load"
+            hx-get="/feed/notifications" hx-target="#notification-panel-container" hx-swap="innerHTML"></div>
+
         <!-- Render initial batch of messages -->
         {% for msg in messages %}
         {% with content=msg.content, created_at=msg.created_at, author=msg.author, id=msg.id, user_id=msg.user_id,

@@ -34,6 +34,11 @@
             background-color: #eff6ff !important;
             border-left: 3px solid #6366f1 !important;
         }
+
+        /* Refresh button hover effect */
+        button[title="Refresh notifications"]:hover {
+            color: #4b5563 !important;
+        }
     </style>
 </head>
 
@@ -130,9 +135,9 @@
                 <!-- ========== LEFT SIDEBAR: My Messages ========== -->
                 <div class="left-sidebar">
                     <div id="my-messages-section">
-                        <!-- Notification Panel -->
-                        <div id="notification-panel-container" hx-get="/feed/notifications"
-                            hx-trigger="load, updateNotifications from:body" hx-swap="innerHTML">
+                        <!-- Notification Panel with polling and manual refresh -->
+                        <div id="notification-panel-container" hx-get="/feed/notifications" hx-trigger="load, every 30s"
+                            hx-swap="innerHTML">
                             <div class="htmx-indicator">Loading notifications...</div>
                         </div>
 

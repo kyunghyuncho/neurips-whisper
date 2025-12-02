@@ -957,6 +957,14 @@ async def stream_messages(
                         "event": "notification",
                         "data": json.dumps(notification_data)
                     }
+                    
+                    # Also trigger notification panel refresh for replies
+                    if notification_type == "new_reply":
+                        # Send empty refresh event that HTMX will use to update the panel
+                        yield {
+                            "event": "refreshNotifications",
+                            "data": ""
+                        }
 
             # Apply filters
             if tags:

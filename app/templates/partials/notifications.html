@@ -5,10 +5,21 @@
     Loaded via HTMX into the left sidebar.
 -->
 {% if notifications %}
-<h4
-    style="margin: 1rem 0 0.5rem; padding-left: 0.5rem; color: #6b7280; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">
-    Notifications
-</h4>
+<div
+    style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0 0.5rem; padding-left: 0.5rem;">
+    <h4 style="margin: 0; color: #6b7280; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">
+        Notifications
+    </h4>
+    <button hx-get="/feed/notifications" hx-target="#notification-panel-container" hx-swap="innerHTML"
+        style="background: none; border: none; cursor: pointer; padding: 0.25rem; color: #6b7280; display: flex; align-items: center;"
+        title="Refresh notifications">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+            </path>
+        </svg>
+    </button>
+</div>
 <div
     style="max-height: 300px; overflow-y: auto; margin-bottom: 1rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 1rem;">
     {% for notif in notifications %}
