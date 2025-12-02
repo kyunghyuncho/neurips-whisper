@@ -1,0 +1,55 @@
+<!--
+    Notification Panel Partial
+    
+    Displays a list of notifications (replies) for the user.
+    Loaded via HTMX into the left sidebar.
+-->
+{% if notifications %}
+<h4
+    style="margin: 1rem 0 0.5rem; padding-left: 0.5rem; color: #6b7280; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">
+    Notifications
+</h4>
+<div
+    style="max-height: 300px; overflow-y: auto; margin-bottom: 1rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 1rem;">
+    {% for notif in notifications %}
+    <div class="feed-item {% if not notif.is_read %}unread-notification{% endif %}"
+        style="cursor: pointer; position: relative;" data-notification-id="{{ notif.id }}"
+        data-message-id="{{ notif.message_id }}" onclick="handleNotificationClick(this)">
+        <div class="message-header">
+            <span class="author">{{ notif.author }}</span>
+            <span class="timestamp">{{ notif.created_at }}</span>
+        </div>
+        <div class="message-content" style="font-size: 0.875rem; color: #4b5563;">
+            <strong style="color: #6366f1;">New reply:</strong> {{ notif.content }}
+        </div>
+        {% if not notif.is_read %}
+        <div class="unread-dot"
+            style="position: absolute; top: 50%; right: 0.75rem; transform: translateY(-50%); width: 8px; height: 8px; background-color: #ef4444; border-radius: 50%;">
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<script>
+    function handleNotificationClick(element) {
+        const notificationId = element.dataset.notificationId;
+        const messageId = element.dataset.messageId;
+
+        // 1. Open the message modal
+        const dummyEl = document.createElement('div');
+        dummyEl.dataset.id = messageId;
+        openMessageModal(dummyEl);
+
+        // 2. Mark as read via HTMX (invisible request)
+        if (element.classList.contains('unread-notification')) {
+            htmx.ajax('POST', '/feed/notifications/' + notificationId + '/read', { swap: 'none' });
+
+            // Update UI immediately
+            element.classList.remove('unread-notification');
+            const dot = element.querySelector('.unread-dot');
+            if (dot) dot.remove();
+        }
+    }
+</script>
