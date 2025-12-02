@@ -56,6 +56,10 @@
         <div id="login-section">
             <h2>Login</h2>
 
+            <!-- Error Display for Login Failures -->
+            <div id="login-error" style="color: #ef4444; margin-bottom: 1rem; font-size: 0.875rem; display: none;">
+            </div>
+
             <!-- 
                 HTMX Form Submission:
                 - hx-post="/auth/login": Posts to login endpoint  
@@ -341,9 +345,24 @@
          * Displays error messages when message posting fails
          */
         document.body.addEventListener('htmx:responseError', function (evt) {
-            // Only handle errors from the post form
+            // Handle errors from the post form
             if (evt.target.getAttribute('hx-post') === '/feed/post') {
                 const errorDiv = document.getElementById('post-error');
+                try {
+                    // Try to parse error message from server response
+                    const response = JSON.parse(evt.detail.xhr.responseText);
+                    errorDiv.textContent = response.detail || "An error occurred";
+                    errorDiv.style.display = 'block';
+                } catch (e) {
+                    // Fallback if response isn't valid JSON
+                    errorDiv.textContent = "An error occurred";
+                    errorDiv.style.display = 'block';
+                }
+            }
+
+            // Handle errors from the login form
+            if (evt.target.getAttribute('hx-post') === '/auth/login') {
+                const errorDiv = document.getElementById('login-error');
                 try {
                     // Try to parse error message from server response
                     const response = JSON.parse(evt.detail.xhr.responseText);
