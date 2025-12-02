@@ -117,7 +117,9 @@
         onclick="event.stopPropagation()">
         <!-- HTMX form posts reply to server -->
         <!-- hx-swap="none" means no DOM update (feed gets new reply via SSE instead) -->
-        <form hx-post="/feed/post" hx-swap="none" onsubmit="toggleReplyForm(this)">
+        <!-- hx-on::after-request handles the UI update manually -->
+        <form hx-post="/feed/post" hx-swap="none"
+            hx-on::after-request="if(event.detail.successful) handleReplySuccess(this)">
             <!-- Hidden field identifies parent message -->
             <input type="hidden" name="parent_id" value="{{ id }}">
             <textarea name="content" rows="2" class="w-full p-2 border rounded text-sm"

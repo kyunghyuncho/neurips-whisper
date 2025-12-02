@@ -466,6 +466,41 @@
             }
         }
 
+        /**
+         * Handle successful reply submission
+         * Called via hx-on::after-request on the reply form
+         * 
+         * @param {HTMLFormElement} form - The reply form that was submitted
+         */
+        function handleReplySuccess(form) {
+            // Find parent message container
+            const feedItem = form.closest('.feed-item');
+            if (!feedItem) return;
+
+            const messageId = feedItem.dataset.id;
+            const repliesContainer = feedItem.querySelector('.feed-replies');
+            const toggleBtn = feedItem.querySelector('.reply-toggle-btn');
+            const formContainer = feedItem.querySelector('.reply-form-container');
+
+            // Hide the reply form
+            if (formContainer) formContainer.style.display = 'none';
+
+            // Fetch updated replies
+            htmx.ajax('GET', '/feed/messages/' + messageId + '/replies', {
+                target: repliesContainer,
+                swap: 'innerHTML'
+            }).then(() => {
+                // Show replies container
+                repliesContainer.style.display = 'block';
+
+                // Update toggle button text
+                if (toggleBtn) {
+                    toggleBtn.textContent = 'Hide replies';
+                    toggleBtn.style.display = 'inline-block';
+                }
+            });
+        }
+
     </script>
 </body>
 

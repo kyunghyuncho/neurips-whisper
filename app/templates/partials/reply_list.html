@@ -1,0 +1,15 @@
+<!--
+    Reply List Partial
+    
+    Renders a list of replies for a specific message.
+    Used to dynamically update the replies section after a new reply is posted.
+-->
+{% if replies %}
+{% for reply in replies %}
+{% with content=reply.content, created_at=reply.created_at, author=reply.author, id=reply.id,
+user_id=reply.user_id,
+replies=reply.replies, is_starred=reply.is_starred, expanded=expanded, user=user, hide_delete=hide_delete %}
+{% include "partials/feed_item.html" %}
+{% endwith %}
+{% endfor %}
+{% endif %}

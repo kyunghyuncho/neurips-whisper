@@ -587,6 +587,47 @@ async def get_thread(
     })
 
 
+@router.get("/messages/{message_id}/replies")
+async def get_replies(
+    request: Request,
+    message_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get replies for a specific message.
+    Used for dynamically updating the replies list after posting.
+    """
+    # Get current user for admin controls
+    current_user = await get_optional_user(request, db)
+    
+    # Fetch the message with replies loaded
+    query = select(Message).options(
+        selectinload(Message.replies).selectinload(Message.user),
+        selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user),
+        selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.replies).selectinload(Message.user)
+    ).filter(Message.id == message_id)
+    
+    result = await db.execute(query)
+    message = result.scalars().first()
+    
+    if not message:
+        return ""
+
+    # Format replies
+    formatted_replies = []
+    if message.replies:
+        # Sort replies by creation time
+        sorted_replies = sorted(message.replies, key=lambda x: x.created_at)
+        formatted_replies = [format_message_recursive(reply) for reply in sorted_replies]
+    
+    return templates.TemplateResponse("partials/reply_list.html", {
+        "request": request,
+        "replies": formatted_replies,
+        "user": current_user,
+        "expanded": True  # Always expand when fetching explicitly
+    })
+
+
 @router.get("/hashtags")
 async def get_hashtags(
     request: Request,
