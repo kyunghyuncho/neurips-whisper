@@ -51,6 +51,10 @@
                 <div>
                     <a href="/feed/download" class="btn-link"
                         style="font-size: 0.875rem; margin-right: 1rem;">Download</a>
+                    {% if user.is_superuser %}
+                    <a href="/feed/audit_logs" class="btn-link"
+                        style="font-size: 0.875rem; margin-right: 1rem;">Logs</a>
+                    {% endif %}
                     <a href="/auth/logout" class="btn-link" style="font-size: 0.875rem;">Logout</a>
                 </div>
             </div>

@@ -130,3 +130,19 @@ class BlacklistedEmail(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class AuditLog(Base):
+    """
+    Model for audit logs.
+    
+    Records important actions taken by users and superusers for auditing purposes.
+    """
+    __tablename__ = "audit_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    action = Column(String, index=True)  # e.g., "user_created", "message_deleted"
+    user_email = Column(String, index=True)  # Email of the actor
+    details = Column(String, nullable=True)  # JSON or text description
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+

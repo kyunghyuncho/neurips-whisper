@@ -14,7 +14,7 @@ from app.config import settings
 # - echo=True: Logs all SQL statements (useful for debugging but verbose)
 # - Uses asyncpg driver for PostgreSQL (specified in DATABASE_URL)
 # - Connection pool is automatically managed by SQLAlchemy
-engine = create_async_engine(settings.DATABASE_URL, echo=True)
+engine = create_async_engine(settings.DATABASE_URL, echo=False)
 
 
 # Session factory for creating database sessions
