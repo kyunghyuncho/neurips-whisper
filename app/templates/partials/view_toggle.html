@@ -1,0 +1,20 @@
+<!-- View Toggle Partial -->
+<!-- 
+    This partial renders the Threaded/Unrolled toggle buttons.
+    It is used in two places:
+    1. Initially included in index.html
+    2. Swapped via OOB (Out of Band) update when the feed container refreshes
+    
+    The id="view-toggle-container" is crucial for OOB swaps to find the target.
+-->
+<div id="view-toggle-container" class="view-toggle"
+    style="font-size: 0.75rem; background: #f3f4f6; padding: 0.25rem; border-radius: 0.5rem; display: flex;">
+    <a href="#" hx-get="/feed/container?view=threaded{% if tags_query %}&{{ tags_query }}{% endif %}"
+        hx-target="#feed-wrapper" hx-push-url="?view=threaded{% if tags_query %}&{{ tags_query }}{% endif %}"
+        class="toggle-btn {% if view != 'unrolled' %}active{% endif %}"
+        style="padding: 0.25rem 0.5rem; border-radius: 0.25rem; text-decoration: none; color: #6b7280; display: block;">Threaded</a>
+    <a href="#" hx-get="/feed/container?view=unrolled{% if tags_query %}&{{ tags_query }}{% endif %}"
+        hx-target="#feed-wrapper" hx-push-url="?view=unrolled{% if tags_query %}&{{ tags_query }}{% endif %}"
+        class="toggle-btn {% if view == 'unrolled' %}active{% endif %}"
+        style="padding: 0.25rem 0.5rem; border-radius: 0.25rem; text-decoration: none; color: #6b7280; display: block;">Unrolled</a>
+</div>

@@ -26,8 +26,9 @@
     - in_modal: Boolean - whether message is in modal (disables click-to-open)
     - hide_delete: Boolean - whether to hide delete button (for sidebar)
 -->
-<div class="feed-item" {% if not in_modal %}onclick="openMessageModal(this)" {% endif %} data-id="{{ id }}"
-    data-author="{{ author }}" data-timestamp="{{ created_at }}">
+<div class="feed-item {% if is_focused %}focused-message{% endif %}" {% if is_focused %}id="focused-message-el" {% endif
+    %} {% if not in_modal %}onclick="openMessageModal(this)" {% endif %} data-id="{{ id }}" data-author="{{ author }}"
+    data-timestamp="{{ created_at }}">
 
     <!-- Message Header: Avatar + Author + Timestamp + Admin Controls -->
     <div class="feed-header" style="display: flex; align-items: center;">
@@ -87,6 +88,11 @@
     <!-- Message Content -->
     <!-- | safe filter allows HTML from linkification to render -->
     <div class="feed-content">
+        {% if parent_author %}
+        <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">
+            Replying to <span style="font-weight: 500;">{{ parent_author }}</span>
+        </div>
+        {% endif %}
         {{ content | safe }}
     </div>
 
@@ -140,7 +146,8 @@
         <!-- This creates unlimited nesting depth for threaded conversations -->
         {% with content=reply.content, created_at=reply.created_at, author=reply.author, id=reply.id,
         user_id=reply.user_id,
-        replies=reply.replies, is_starred=reply.is_starred, expanded=expanded, user=user, hide_delete=hide_delete %}
+        replies=reply.replies, is_starred=reply.is_starred, expanded=expanded, user=user, hide_delete=hide_delete,
+        is_focused=reply.is_focused %}
         {% include "partials/feed_item.html" %}
         {% endwith %}
         {% endfor %}

@@ -474,6 +474,199 @@ textarea:focus {
     .subtitle {
         font-size: 0.625rem;
     }
+
+    /* Typography Improvements for Mobile */
+    .feed-author {
+        font-size: 0.9375rem;
+        /* 15px - more readable */
+    }
+
+    .feed-timestamp {
+        font-size: 0.8125rem;
+        /* 13px - slightly larger */
+    }
+
+    .feed-content {
+        font-size: 1.0625rem;
+        /* 17px - better readability */
+        line-height: 1.5;
+    }
+
+    /* Button & Touch Target Improvements */
+    .btn {
+        padding: 0.875rem 1.5rem;
+        /* Larger touch target */
+        font-size: 1.0625rem;
+        /* 17px */
+    }
+
+    .action-btn {
+        padding: 0.5rem 1rem;
+        /* Minimum 44px touch target height */
+        font-size: 0.875rem;
+        min-height: 44px;
+        /* iOS/Android recommended minimum */
+    }
+
+    .icon-btn {
+        padding: 0.625rem;
+        /* Larger tap area */
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .icon-btn svg {
+        width: 18px;
+        /* Slightly larger icons */
+        height: 18px;
+    }
+
+    /* Form Improvements */
+    input[type="email"],
+    input[type="text"],
+    textarea {
+        font-size: 1rem;
+        /* Prevents iOS zoom on focus */
+        padding: 0.875rem;
+    }
+
+    textarea {
+        font-size: 1rem;
+        /* Consistent with inputs */
+    }
+
+    /* Search bar specific */
+    input[name="search"] {
+        font-size: 1rem;
+        padding: 0.75rem;
+    }
+
+    /* Sidebar Improvements */
+    .hashtag-sidebar,
+    .left-sidebar {
+        padding: 0.875rem;
+        max-height: none;
+        /* Allow natural height on mobile */
+        position: relative;
+        /* Remove sticky on mobile */
+        margin-bottom: 1.5rem;
+    }
+
+    .hashtag-sidebar h3,
+    .left-sidebar h3 {
+        font-size: 1.0625rem;
+        margin-bottom: 0.875rem;
+    }
+
+    /* Feed Layout Improvements */
+    .feed-item {
+        padding: 1rem;
+        margin-bottom: 0.875rem;
+    }
+
+    .feed-avatar {
+        width: 2.75rem;
+        /* Slightly larger */
+        height: 2.75rem;
+        margin-right: 0.875rem;
+    }
+
+    .feed-avatar svg {
+        width: 1.625rem;
+        height: 1.625rem;
+    }
+
+    .feed-header {
+        margin-bottom: 0.875rem;
+    }
+
+    .feed-actions {
+        margin-top: 0.75rem;
+        gap: 0.75rem;
+    }
+
+    /* Reply nesting - reduce indentation on mobile */
+    .feed-replies {
+        margin-left: 0.75rem !important;
+        /* Less indentation on mobile */
+        padding-left: 0.5rem !important;
+    }
+
+    .reply-form-container {
+        margin-left: 0.5rem;
+        margin-top: 0.75rem;
+    }
+
+    /* Modal Improvements */
+    .modal {
+        max-width: 95%;
+        /* Use more screen width */
+        padding: 1.5rem;
+        max-height: 85vh;
+    }
+
+    #message-modal .modal {
+        max-width: 95%;
+        /* Override specific modal max-width */
+    }
+
+    .copy-link-btn {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8125rem;
+        min-height: 44px;
+        /* Touch-friendly */
+    }
+
+    /* Feed container adjustments */
+    .feed-container {
+        padding: 0.75rem;
+        max-height: 500px;
+        /* Slightly shorter on mobile */
+    }
+
+    /* Character counter */
+    #char-counter {
+        font-size: 0.875rem;
+    }
+
+    /* Header actions alignment */
+    .header {
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.875rem;
+    }
+
+    /* Feed header actions (Download, Logs, Logout) */
+    .feed-section h2 {
+        font-size: 1.25rem;
+    }
+
+    /* Tom Select dropdown on mobile */
+    .ts-control .item {
+        font-size: 0.8125rem !important;
+    }
+
+    /* Notification panel improvements */
+    #notification-panel-container {
+        margin-bottom: 1rem;
+    }
+
+    /* Checkbox labels */
+    .checkbox-label {
+        font-size: 0.9375rem;
+    }
+
+    .checkbox-label input {
+        width: 1.125rem;
+        height: 1.125rem;
+    }
+
+    /* Star button touch target */
+    button[hx-post*="/feed/star/"],
+    button[hx-delete*="/feed/star/"] {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 0.625rem;
+    }
 }
 
 /*
