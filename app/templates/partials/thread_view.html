@@ -1,3 +1,18 @@
+<!--
+    Thread View Wrapper
+    
+    This simple partial wraps feed_item.html for displaying a full conversation thread.
+    It's used when showing a message in the modal with full context.
+    
+    Key differences from normal feed display:
+    - expanded=True: Shows all nested replies by default
+    - in_modal=True: Disables click-to-open behavior (already in modal)
+    
+    Context variables:
+    - message: The root message object of the thread
+    - is_starred: Whether current user has starred this message
+    - user: Current user object (for permissions)
+-->
 {% with content=message.content, created_at=message.created_at, author=message.author, id=message.id,
 user_id=message.user_id,
 replies=message.replies, is_starred=message.is_starred, expanded=True, user=user, in_modal=True %}

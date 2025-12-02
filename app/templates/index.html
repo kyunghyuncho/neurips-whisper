@@ -1,33 +1,76 @@
+<!--
+    NeurIPS Whisper - Main Application Template
+    
+    This is the single-page application template that handles both:
+    1. Unauthenticated state: Login form
+    2. Authenticated state: Live message feed with real-time updates
+    
+    Key Technologies:
+    - HTMX: For seamless AJAX interactions without writing JavaScript
+    - SSE Extension: For real-time Server-Sent Events streaming
+    - Jinja2: Server-side templating with conditional rendering and loops
+    - Vanilla JavaScript: For UI interactions (modals, toggles)
+-->
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
+    <!-- Viewport meta for responsive design on mobile devices -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NeurIPS Whisper</title>
+
+    <!-- HTMX Core Library - Enables declarative AJAX, SSE, and more -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <!-- HTMX SSE Extension - Adds Server-Sent Events support for real-time feeds -->
     <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+
+    <!-- Custom CSS Styles -->
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
 <body>
     <div class="container">
+        <!-- Application Header - Always Visible -->
         <div class="header">
             <h1>NeurIPS Whisper</h1>
             <p class="subtitle">Developed by Kyunghyun Cho under KC Explorer LLC</p>
         </div>
 
+        <!--
+            =================================================================
+            CONDITIONAL RENDERING: Login Form vs. Feed
+            =================================================================
+            
+            Jinja2 conditional checks authentication status:
+            - If user is NOT logged in: Show login form
+            - If user IS logged in: Show live feed interface
+        -->
+
         {% if not user %}
-        <!-- Login Form -->
+        <!--
+            ===================== UNAUTHENTICATED STATE =====================
+            Login Form - Magic Link Authentication
+        -->
         <div id="login-section">
             <h2>Login</h2>
+
+            <!-- 
+                HTMX Form Submission:
+                - hx-post="/auth/login": Posts to login endpoint  
+                - hx-swap="outerHTML": Replaces this entire form with server response
+                  (Server returns magic_link_sent.html partial on success)
+            -->
             <form hx-post="/auth/login" hx-swap="outerHTML">
                 <div class="form-group">
                     <label>Email</label>
+                    <!-- Email validation enforced by HTML5 type="email" -->
                     <input type="email" name="email" required placeholder="your.name@institution.edu">
                 </div>
                 <div class="form-group">
                     <label>Conference Code</label>
+                    <!-- Secret code gates access to authorized attendees only -->
                     <input type="text" name="conference_code" required placeholder="Enter code">
                 </div>
                 <div class="form-group">
@@ -44,41 +87,67 @@
             </form>
         </div>
         {% else %}
-        <!-- Feed Section -->
+        <!--
+            ===================== AUTHENTICATED STATE =====================
+            Live Feed Interface with Real-time Updates
+        -->
         <div id="feed-section">
+            <!-- Feed Header with Actions -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                 <h2>Live Feed</h2>
                 <div>
+                    <!-- Data download link (available to all users) -->
                     <a href="/feed/download" class="btn-link"
                         style="font-size: 0.875rem; margin-right: 1rem;">Download</a>
+                    <!-- Audit logs link (superusers only) -->
                     {% if user.is_superuser %}
                     <a href="/feed/audit_logs" class="btn-link"
                         style="font-size: 0.875rem; margin-right: 1rem;">Logs</a>
                     {% endif %}
+                    <!-- Logout link -->
                     <a href="/auth/logout" class="btn-link" style="font-size: 0.875rem;">Logout</a>
                 </div>
             </div>
 
+            <!--
+                Three-Column Feed Layout:
+                1. Left Sidebar: User's personal messages
+                2. Main Feed: All messages with posting interface
+                3. Right Sidebar: Trending hashtags
+            -->
             <div class="feed-layout">
+                <!-- ========== LEFT SIDEBAR: My Messages ========== -->
                 <div class="left-sidebar">
                     <div id="my-messages-section">
                         <h3>My Messages</h3>
+                        <!--
+                            HTMX Auto-loading Div:
+                            - hx-get="/feed/my_messages": Loads user's messages
+                            - hx-trigger="load": Fetches on page load
+                            - hx-trigger="updateMyMessages from:body": Refetches when custom event fires
+                              (Event is triggered after posting or starring)
+                        -->
                         <div hx-get="/feed/my_messages" hx-trigger="load, updateMyMessages from:body">
                             <div class="htmx-indicator">Loading...</div>
                         </div>
                     </div>
                 </div>
 
+                <!-- ========== MAIN FEED COLUMN ========== -->
                 <div class="feed-main">
-                    <!-- Post Form (moved to top) -->
+                    <!-- Error Display for Failed Posts -->
                     <div id="post-error"
                         style="color: #ef4444; margin-bottom: 0.5rem; font-size: 0.875rem; display: none;">
                     </div>
+
+                    <!-- Message Posting Form -->
                     <form hx-post="/feed/post" hx-swap="none" style="margin-bottom: 1rem;">
                         <div style="position: relative;">
+                            <!-- Text area with character limit -->
                             <textarea id="post-content" name="content" rows="3" placeholder="What's happening?"
                                 maxlength="140" required style="width: 100%;"
                                 oninput="updateCharCounter(this)"></textarea>
+                            <!-- Character counter (updated by JavaScript) -->
                             <div id="char-counter"
                                 style="text-align: right; font-size: 0.8rem; color: #666; margin-top: 0.25rem;">0/140
                             </div>
@@ -90,6 +159,13 @@
 
                     <!-- Search Bar -->
                     <div class="search-bar" style="margin-bottom: 1rem;">
+                        <!--
+                            HTMX Search Input:
+                            - hx-get: Fetches filtered feed
+                            - hx-trigger="keyup changed delay:500ms": Debounced search (waits 500ms after typing stops)
+                            - hx-target="#feed-wrapper": Updates the feed container
+                            - hx-push-url="true": Updates browser URL for shareable links
+                        -->
                         <input type="text" name="search" placeholder="Search messages..." class="form-control"
                             style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;"
                             hx-get="/feed/container{% if tags_query %}?{{ tags_query }}{% endif %}"
@@ -97,11 +173,18 @@
                             hx-push-url="true" value="{{ search or '' }}">
                     </div>
 
-                    <!-- Feed Container -->
+                    <!-- Feed Container (includes feed_container.html partial with SSE) -->
                     {% include "partials/feed_container.html" %}
                 </div>
 
+                <!-- ========== RIGHT SIDEBAR: Trending Hashtags ========== -->
                 <div class="hashtag-sidebar">
+                    <!--
+                        HTMX Auto-refreshing Hashtags:
+                        - hx-trigger="load": Initial load
+                        - hx-trigger="every 60s": Refresh every minute
+                        - hx-trigger="updateHashtags from:body": Refresh on custom events
+                    -->
                     <div hx-get="/feed/hashtags{% if tags_query %}?{{ tags_query }}{% endif %}"
                         hx-trigger="load, every 60s, updateHashtags from:body">
                         <div class="htmx-indicator">Loading trends...</div>
@@ -160,45 +243,83 @@
         </div>
     </div>
 
+    <!--
+        =================================================================
+        JAVASCRIPT - UI Interactions and Event Handling
+        =================================================================
+        
+        This script handles client-side interactions that aren't covered by HTMX:
+        - Modal opening/closing with URL updates
+        - Permalink copying
+        - Character counter updates
+        - Hashtag filtering navigation
+        - Reply form toggling
+        - Thread expansion/collapse
+        - HTMX event listeners for post errors
+    -->
     <script>
+        // Track the currently viewed message ID for permalink generation
         let currentMessageId = {% if focused_message %}{ { focused_message.id } } {% else %} null{% endif %};
 
-        // If there is a focused message on load, fetch the thread
+        // If page loaded with a focused message (deep link like /?msg=123), fetch its thread
         {% if focused_message %}
         document.addEventListener('DOMContentLoaded', function () {
+            // Use HTMX's ajax() method to fetch thread and inject into modal
             htmx.ajax('GET', '/feed/thread/{{ focused_message.id }}', '#message-modal-content');
         });
         {% endif %}
 
+        /**
+         * Open message modal and load thread
+         * Called when clicking a message in the feed
+         * 
+         * @param {HTMLElement} element - The feed-item div that was clicked
+         */
         function openMessageModal(element) {
+            // Get message ID from data attribute
             const id = element.dataset.id;
             currentMessageId = id;
 
+            // Show loading state
             document.getElementById('message-modal-content').innerHTML = '<div class="htmx-indicator">Loading thread...</div>';
             document.getElementById('message-modal').classList.add('active');
 
-            // Fetch thread
+            // Fetch full thread from server using HTMX
             htmx.ajax('GET', '/feed/thread/' + id, '#message-modal-content');
 
-            // Update URL without reload
+            // Update URL to make modal shareable
+            // This adds ?msg=ID to URL without triggering page reload
             const url = new URL(window.location);
             url.searchParams.set('msg', id);
             window.history.pushState({}, '', url);
         }
 
+        /**
+         * Close message modal and clean up URL
+         */
         function closeMessageModal() {
             console.log('closeMessageModal called');
             document.getElementById('message-modal').classList.remove('active');
-            // Remove msg param from URL
+
+            // Remove ?msg parameter from URL
             const url = new URL(window.location);
             url.searchParams.delete('msg');
             window.history.pushState({}, '', url);
         }
 
+        /**
+         * Copy permalink URL to clipboard
+         * Called from "Copy Link" button in modal
+         */
         function copyPermalink() {
             if (!currentMessageId) return;
+
+            // Build shareable URL with message ID
             const url = window.location.origin + "/?msg=" + currentMessageId;
+
+            // Use Clipboard API (modern browsers)
             navigator.clipboard.writeText(url).then(() => {
+                // Provide user feedback by temporarily changing button text
                 const btn = document.querySelector('.copy-link-btn');
                 const originalText = btn.innerHTML;
                 btn.innerHTML = 'Copied!';
@@ -208,38 +329,60 @@
             });
         }
 
-        // Close modal on click outside
+        // Close modal when clicking outside content area (on overlay)
         document.getElementById('message-modal').addEventListener('click', function (e) {
-            if (e.target === this) {
+            if (e.target === this) {  // Clicked the overlay, not the modal content
                 closeMessageModal();
             }
         });
 
+        /**
+         * HTMX Event Listener: Handle post errors
+         * Displays error messages when message posting fails
+         */
         document.body.addEventListener('htmx:responseError', function (evt) {
+            // Only handle errors from the post form
             if (evt.target.getAttribute('hx-post') === '/feed/post') {
                 const errorDiv = document.getElementById('post-error');
                 try {
+                    // Try to parse error message from server response
                     const response = JSON.parse(evt.detail.xhr.responseText);
                     errorDiv.textContent = response.detail || "An error occurred";
                     errorDiv.style.display = 'block';
                 } catch (e) {
+                    // Fallback if response isn't valid JSON
                     errorDiv.textContent = "An error occurred";
                     errorDiv.style.display = 'block';
                 }
             }
         });
 
+        /**
+         * HTMX Event Listener: Handle successful posts
+         * Clears form and hides error messages after posting
+         */
         document.body.addEventListener('htmx:afterRequest', function (evt) {
             if (evt.target.getAttribute('hx-post') === '/feed/post') {
                 if (evt.detail.successful) {
+                    // Hide any error messages
                     document.getElementById('post-error').style.display = 'none';
+
+                    // Reset the form
                     evt.target.reset();
-                    // Reset character counter
+
+                    // Reset character counter to 0/140
                     const counter = document.getElementById('char-counter');
                     if (counter) counter.textContent = '0/140';
                 }
             }
         });
+
+        /**
+         * Update character counter as user types
+         * Called on every keystroke in the post textarea
+         * 
+         * @param {HTMLTextAreaElement} textarea - The textarea being monitored
+         */
         function updateCharCounter(textarea) {
             const maxLength = textarea.getAttribute('maxlength');
             const currentLength = textarea.value.length;
@@ -247,6 +390,12 @@
             counter.textContent = `${currentLength}/${maxLength}`;
         }
 
+        /**
+         * Navigate to filtered feed by hashtag
+         * Called when clicking hashtag links in message content
+         * 
+         * @param {string} tag - Hashtag name (without # symbol)
+         */
         function toggleHashtag(tag) {
             const url = new URL(window.location);
             const params = new URLSearchParams(url.search);
@@ -254,25 +403,33 @@
             // Check if tag is already selected
             let tags = params.getAll('tags');
             if (!tags.includes(tag)) {
+                // Add tag to URL parameters
                 params.append('tags', tag);
-                // Search param is already in params (from window.location), so it's preserved
+                // Preserve any existing search query
                 url.search = params.toString();
+                // Navigate to filtered view
                 window.location.href = url.toString();
             }
         }
 
+        /**
+         * Toggle reply form visibility
+         * Shows/hides the reply textarea for a specific message
+         * 
+         * @param {HTMLElement} element - Button that was clicked
+         */
         function toggleReplyForm(element) {
-            // Find the closest feed-item
+            // Navigate up DOM to find parent message container
             const feedItem = element.closest('.feed-item');
             if (!feedItem) return;
 
-            // Find the reply form container within this feed item
+            // Find reply form within this specific message
             const formContainer = feedItem.querySelector('.reply-form-container');
             if (!formContainer) return;
 
             if (formContainer.style.display === 'none') {
+                // Show form and focus textarea for immediate typing
                 formContainer.style.display = 'block';
-                // Focus textarea
                 const textarea = formContainer.querySelector('textarea');
                 if (textarea) textarea.focus();
             } else {
@@ -280,6 +437,12 @@
             }
         }
 
+        /**
+         * Toggle replies visibility (expand/collapse thread)
+         * Shows/hides nested replies for a message
+         * 
+         * @param {HTMLElement} element - Button that was clicked
+         */
         function toggleReplies(element) {
             const feedItem = element.closest('.feed-item');
             if (!feedItem) return;
@@ -287,17 +450,17 @@
             const repliesContainer = feedItem.querySelector('.feed-replies');
             const toggleBtn = feedItem.querySelector('.reply-toggle-btn');
 
-            // If the clicked element is the toggle button itself, use it. 
-            // If it's the "Hide replies" button (which might be separate), we still need to update the main toggle button.
-
             if (!repliesContainer) return;
 
             if (repliesContainer.style.display === 'none') {
+                // Show replies
                 repliesContainer.style.display = 'block';
                 if (toggleBtn) toggleBtn.textContent = 'Hide replies';
             } else {
+                // Hide replies
                 repliesContainer.style.display = 'none';
-                // Count children div.feed-item
+
+                // Update button text to show count
                 const count = repliesContainer.querySelectorAll('.feed-item').length;
                 if (toggleBtn) toggleBtn.textContent = 'Show ' + count + ' replies';
             }

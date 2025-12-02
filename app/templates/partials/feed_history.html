@@ -1,10 +1,36 @@
+<!--
+    Feed History Component with Infinite Scroll
+    
+    This partial renders a list of historical messages with pagination support.
+    It's typically used in the main feed or filtered views.
+    
+    HTMX Infinite Scroll Pattern:
+    - Messages are paginated using cursor-based pagination
+    - When user scrolls to bottom, hx-trigger="revealed" loads next page
+    - hx-swap="outerHTML" replaces the "Loading more..." div with new messages
+    - The server returns more messages PLUS a new "Loading more..." div for the next page
+    
+    This creates a seamless infinite scroll experience without traditional pagination UI.
+    
+    Context variables:
+    - messages: List of Message objects to display
+    - next_cursor: Pagination cursor for next page (None if no more messages)
+    - tag: Optional hashtag filter to preserve in pagination links
+-->
+
+<!-- Loop through all messages in current page -->
 {% for msg in messages %}
+<!-- Pass message data to feed_item partial -->
 {% with content=msg.content, created_at=msg.created_at, author=msg.author, id=msg.id, replies=msg.replies %}
 {% include "partials/feed_item.html" %}
 {% endwith %}
 {% endfor %}
 
+<!-- Infinite Scroll Trigger (only shown if more messages exist) -->
 {% if next_cursor %}
+<!-- This div triggers the next page load when it becomes visible -->
+<!-- hx-trigger="revealed": Fires when element scrolls into viewport -->
+<!-- hx-swap="outerHTML": Replaces this entire div with server response -->
 <div hx-get="/feed/history?cursor={{ next_cursor }}{% if tag %}&tag={{ tag }}{% endif %}" hx-trigger="revealed"
     hx-swap="outerHTML" class="text-center p-4 text-gray-500">
     Loading more...

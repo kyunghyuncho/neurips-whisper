@@ -1,19 +1,53 @@
+<!--
+   Feed Container with Real-time Streaming
+    
+    This is the main feed wrapper that combines:
+    1. Active filter display (tags and search)
+    2. Server-Sent Events (SSE) for real-time message streaming
+    3. Initial message history
+    4. Infinite scroll pagination
+    
+    HTMX SSE (Server-Sent Events) Implementation:
+    - hx-ext="sse": Enables SSE extension for real-time updates
+    - sse-connect="/feed/stream": Connects to SSE endpoint
+    - sse-swap="message": Listens for "message" events from server
+    - hx-swap="afterbegin": Inserts new messages at TOP of feed
+    
+    This allows new messages to appear instantly without polling or websockets.
+    
+    Context variables:
+    - tags: List of selected hashtag filters
+    - search: Current search query string
+    - tags_query: URL-encoded query string for preserving tags in URLs
+    - messages: Initial list of messages to display
+    - user: Current user object
+-->
 <div id="feed-wrapper">
+    <!-- Active Filter Display -->
+    <!-- Shows current filters and provides "Clear All" button -->
     {% if tags or search %}
     <div
         style="background: #e0e7ff; color: #4338ca; padding: 0.5rem; border-radius: 0.5rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
         <span>
+            <!-- Display selected hashtags -->
             {% if tags %}Filtering by <strong>{{ tags|join(', ') }}</strong>{% endif %}
             {% if tags and search %} and {% endif %}
+            <!-- Display search query -->
             {% if search %}Searching for <strong>"{{ search }}"</strong>{% endif %}
         </span>
+        <!-- Clear all filters button -->
+        <!-- Fetches unfiltered feed to reset view -->
         <button hx-get="/feed/container" hx-target="#feed-wrapper" class="btn-link" style="font-size: 0.875rem;">Clear
             All</button>
     </div>
     {% endif %}
 
+    <!-- Feed Container with SSE for Real-time Updates -->
+    <!-- THE KEY FEATURE: This div automatically receives new messages via SSE -->
     <div hx-ext="sse" sse-connect="/feed/stream{% if tags_query %}?{{ tags_query }}{% endif %}" sse-swap="message"
         hx-swap="afterbegin" class="feed-container">
+
+        <!-- Render initial batch of messages -->
         {% for msg in messages %}
         {% with content=msg.content, created_at=msg.created_at, author=msg.author, id=msg.id, user_id=msg.user_id,
         replies=msg.replies,
@@ -22,8 +56,12 @@
         {% endwith %}
         {% endfor %}
 
+        <!-- Infinite Scroll Pagination Trigger -->
+        <!-- Only shown if there are messages to paginate from -->
         {% if messages %}
         {% set last_msg = messages[-1] %}
+        <!-- When this div scrolls into view, load more messages -->
+        <!-- Cursor is the ID of the last message for pagination -->
         <div hx-get="/feed/history?cursor={{ last_msg.id }}{% if tags_query %}&{{ tags_query }}{% endif %}"
             hx-trigger="revealed" hx-swap="outerHTML" class="text-center p-4 text-gray-500">
             Loading more...

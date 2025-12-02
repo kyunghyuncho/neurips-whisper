@@ -1,15 +1,38 @@
+<!--
+    Magic Link Sent Confirmation Partial
+    
+    This template is displayed after a user successfully requests a magic link login.
+    It replaces the login form using HTMX (hx-swap="outerHTML" in auth/login route).
+    
+    Features:
+    - Success icon (email envelope SVG)
+    - Confirmation message with user's email address
+    - Helpful instructions to check spam folder
+    
+    Context variables:
+    - email: The email address where the magic link was sent
+-->
 <div class="magic-link-sent">
+    <!-- Success icon container -->
     <div class="mb-4">
+        <!-- Email envelope icon using SVG -->
         <svg class="icon-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
             </path>
         </svg>
     </div>
+
+    <!-- Main confirmation message -->
     <h2>Check your email</h2>
+
+    <!-- Personalized message with user's email -->
+    <!-- The {{ email }} variable is injected from the Jinja2 template context -->
     <p class="text-muted" style="margin-bottom: 1.5rem;">We've sent a magic link to <strong>{{ email
             }}</strong>.<br>Click the link to sign in.
     </p>
+
+    <!-- Helpful tip for users who can't find the email -->
     <div class="text-muted" style="font-size: 0.875rem;">
         <p>Can't find it? Check your spam folder.</p>
     </div>

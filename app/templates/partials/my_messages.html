@@ -1,9 +1,34 @@
+<!--
+    My Messages Sidebar Component
+    
+    This partial displays the current user's personal message collection in the left sidebar.
+    It shows two sections:
+    1. Starred Messages - Messages the user has bookmarked
+    2. My Messages - Messages the user has posted
+    
+    HTMX Update Trigger:
+    - This component is loaded via hx-get="/feed/my_messages"
+    - It refreshes on "updateMyMessages" custom events (fired when user posts/stars)
+    
+    Features:
+    - Scrollable container (max-height: 400px) for long lists
+    - Empty state when user has no messages
+    - Reuses feed_item.html partial for consistent message display
+    
+    Context variables:
+    - starred_messages: List of Message objects the user has starred
+    - my_messages: List of Message objects the user has posted
+    - user: Current user object (passed to feed_item.html)
+-->
 <div id="my-messages-list" style="max-height: 400px; overflow-y: auto;">
+    <!-- Starred Messages Section -->
     {% if starred_messages %}
     <h4
         style="margin: 1rem 0 0.5rem; padding-left: 0.5rem; color: #6b7280; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">
         Starred Messages</h4>
     {% for message in starred_messages %}
+    <!-- Pass message data to feed_item partial using Jinja2 'with' block -->
+    <!-- hide_delete=True prevents delete button from showing in sidebar -->
     {% with content=message.content, created_at=message.created_at, author=message.author, id=message.id,
     user_id=message.user_id,
     replies=message.replies, is_starred=message.is_starred, user=user, hide_delete=True %}
@@ -12,11 +37,13 @@
     {% endfor %}
     {% endif %}
 
+    <!-- My Messages Section (User's own posts) -->
     {% if my_messages %}
     <h4
         style="margin: 1rem 0 0.5rem; padding-left: 0.5rem; color: #6b7280; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">
         My Messages</h4>
     {% for message in my_messages %}
+    <!-- Same pattern as starred messages -->
     {% with content=message.content, created_at=message.created_at, author=message.author, id=message.id,
     user_id=message.user_id,
     replies=message.replies, is_starred=message.is_starred, user=user, hide_delete=True %}
@@ -25,6 +52,7 @@
     {% endfor %}
     {% endif %}
 
+    <!-- Empty State - Shown when user has no messages or stars -->
     {% if not starred_messages and not my_messages %}
     <div style="padding: 1rem; color: #6b7280; text-align: center;">
         No messages yet. Star some posts or write your own!

@@ -1,12 +1,41 @@
+<!--
+    Hashtag List Sidebar Component
+    
+    This partial renders the trending hashtags sidebar with checkboxes for filtering.
+    Users can select multiple hashtags to filter the main feed view.
+    
+    HTMX Form Behavior:
+    - hx-get="/feed/container": Fetches filtered feed when checkboxes change
+    - hx-target="#feed-wrapper": Updates the feed container with results
+    - hx-trigger="change": Triggers on any checkbox state change
+    
+    The form automatically preserves any existing tag query parameters from the URL
+    to maintain the current filter state during navigation.
+    
+    Context variables:
+    - hashtags: List of (tag, count) tuples showing tag names and usage counts
+    - selected_tags: Set of currently selected tag names for filtering
+-->
 <div class="hashtag-list">
     <h3>Trending Topics</h3>
+
+    <!-- HTMX form that triggers feed updates on checkbox changes -->
     <form hx-get="/feed/container" hx-target="#feed-wrapper" hx-trigger="change">
+        <!-- Loop through all available hashtags -->
         {% for tag, count in hashtags %}
         <div class="checkbox-label">
+            <!-- Checkbox for tag filtering -->
+            <!-- - name="tags": Multiple checkboxes with same name create array in request -->
+            <!-- - checked if tag is in selected_tags: Preserves user's current filter -->
             <input type="checkbox" name="tags" value="{{ tag }}" {% if tag in selected_tags %}checked{% endif %}>
+
+            <!-- Tag display with usage count -->
+            <!-- Count shows how many messages use this hashtag -->
             <span>#{{ tag }} <small class="text-muted">({{ count }})</small></span>
         </div>
         {% endfor %}
+
+        <!-- Empty state when no hashtags exist yet -->
         {% if not hashtags %}
         <p class="text-muted">No trending hashtags yet.</p>
         {% endif %}

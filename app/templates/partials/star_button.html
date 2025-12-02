@@ -1,5 +1,26 @@
+<!--
+    Star Button Component
+    
+    This partial renders a star button for toggling a message's starred status.
+    It's included in feed items and uses HTMX for seamless toggling without page reload.
+    
+    HTMX Attributes:
+    - hx-post="/feed/star/{{ id }}": Sends POST request to toggle star status
+    - hx-swap="outerHTML": Replaces this entire button with server response
+      (The server returns updated button HTML with new is_starred state)
+    
+    Event Handling:
+    - onclick="event.stopPropagation()": Prevents click from bubbling to parent
+      (Without this, clicking the star would also trigger the message modal)
+    
+    Context variables:
+    - id: Message ID to star/unstar
+    - is_starred: Boolean indicating current star status
+-->
 <button hx-post="/feed/star/{{ id }}" hx-swap="outerHTML" class="star-btn" onclick="event.stopPropagation()"
     style="background: none; border: none; cursor: pointer; color: {% if is_starred %}#fbbf24{% else %}#9ca3af{% endif %}; padding: 0;">
+    <!-- Star icon (filled if starred, outline if not) -->
+    <!-- Color: #fbbf24 (amber-400) when starred, #9ca3af (gray-400) when not -->
     <svg width="20" height="20" fill="{% if is_starred %}currentColor{% else %}none{% endif %}" stroke="currentColor"
         viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

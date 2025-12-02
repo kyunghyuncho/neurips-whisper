@@ -1,42 +1,95 @@
+/*
+ * ============================================================================
+ * CSS CUSTOM PROPERTIES (DESIGN TOKENS)
+ * ============================================================================
+ * 
+ * These variables create a consistent design system across the application.
+ * They use CSS custom properties (--variable-name) which can be referenced
+ * anywhere in the stylesheet using var(--variable-name).
+ * 
+ * Benefits:
+ * - Single source of truth for colors, spacing, shadows
+ * - Easy to maintain and update theme
+ * - Could be changed at runtime for dark mode support
+ */
 :root {
+    /* Primary brand color (Indigo from Tailwind CSS palette) */
     --primary-color: #6366f1;
-    /* Indigo 500 */
+    /* Used for buttons, links, accents */
     --primary-hover: #4f46e5;
-    /* Indigo 600 */
+    /* Darker shade for hover states */
+
+    /* Background and surface colors */
     --background-color: #f3f4f6;
-    /* Gray 100 */
+    /* Light gray page background */
     --surface-color: #ffffff;
+    /* White for cards and containers */
+
+    /* Text colors */
     --text-color: #1f2937;
-    /* Gray 800 */
+    /* Almost black for primary text */
     --text-muted: #6b7280;
-    /* Gray 500 */
+    /* Gray for secondary text */
+
+    /* Border and divider color */
     --border-color: #e5e7eb;
-    /* Gray 200 */
+    /* Subtle gray for borders */
+
+    /* Box shadows (layered for depth) */
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+    /* Border radius for rounded corners */
     --radius: 0.75rem;
+    /* 12px - used consistently across components */
+
+    /* Font stack - tries Inter first, falls back to system fonts */
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+/*
+ * ============================================================================
+ * GLOBAL RESETS AND BODY LAYOUT
+ * ============================================================================
+ */
+
+/* Universal box-sizing reset - makes width/height include padding and border */
 * {
     box-sizing: border-box;
+    /* Easier to reason about element sizing */
     margin: 0;
+    /* Remove default browser margins */
     padding: 0;
+    /* Remove default browser padding */
 }
 
+/* Body layout - flexbox centers the container vertically and horizontally */
 body {
     font-family: var(--font-sans);
     background-color: var(--background-color);
     color: var(--text-color);
     line-height: 1.5;
+    /* Comfortable reading line height */
     min-height: 100vh;
+    /* Full viewport height minimum */
     display: flex;
+    /* Flexbox for centering */
     flex-direction: column;
+    /* Stack children vertically */
     align-items: center;
+    /* Center horizontally */
     padding: 1rem;
+    /* Breathing room on edges */
 }
 
+/*
+ * ============================================================================
+ * LAYOUT - MAIN CONTAINER
+ * ============================================================================
+ */
+
+/* Main content container - centers and constrains width */
 .container {
     width: 100%;
     max-width: 1400px;
@@ -49,6 +102,13 @@ body {
     transition: transform 0.2s ease;
 }
 
+/*
+ * ============================================================================
+ * TYPOGRAPHY AND HEADINGS
+ * ============================================================================
+ */
+
+/* Page header with bottom border */
 .header {
     text-align: center;
     margin-bottom: 1.5rem;
@@ -56,6 +116,7 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
+/* Main heading with gradient text effect */
 h1 {
     font-size: 1.875rem;
     font-weight: 800;
@@ -78,6 +139,12 @@ h2 {
     margin-bottom: 1rem;
     color: var(--text-color);
 }
+
+/*
+ * ============================================================================
+ * FORM ELEMENTS
+ * ============================================================================
+ */
 
 .form-group {
     margin-bottom: 1.25rem;
@@ -124,6 +191,13 @@ textarea:focus {
     accent-color: var(--primary-color);
 }
 
+/*
+ * ============================================================================
+ * BUTTONS AND INTERACTIVE ELEMENTS
+ * ============================================================================
+ */
+
+/* Base button styles */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -172,6 +246,13 @@ textarea:focus {
     text-decoration: underline;
 }
 
+/*
+ * ============================================================================
+ * FEED COMPONENTS - Messages and Posts
+ * ============================================================================
+ */
+
+/* Feed container with scrolling */
 .feed-container {
     max-height: 600px;
     overflow-y: auto;
@@ -254,9 +335,13 @@ textarea:focus {
     text-decoration: underline;
 }
 
+/*
+ * ============================================================================
+ * MODAL OVERLAY AND DIALOGS
+ * ============================================================================
+ */
 
-
-/* Modal */
+/* Modal overlay - covers entire screen with semi-transparent background */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -364,6 +449,13 @@ textarea:focus {
     color: var(--primary-color);
 }
 
+/*
+ * ============================================================================
+ * RESPONSIVE DESIGN - Mobile Adaptations
+ * ============================================================================
+ */
+
+/* Mobile-specific adjustments (screens 640px and below) */
 @media (max-width: 640px) {
     body {
         padding: 0.5rem;
@@ -384,6 +476,16 @@ textarea:focus {
     }
 }
 
+/*
+ * ============================================================================
+ * FEED LAYOUT - Three-Column Grid
+ * ============================================================================
+ * 
+ * Desktop: Left sidebar (my messages) | Main feed | Right sidebar (hashtags)
+ * Mobile: Stacks vertically with reordered sections
+ */
+
+/* Three-column grid for desktop */
 .feed-layout {
     display: grid;
     grid-template-columns: 300px 1fr 300px;
@@ -420,6 +522,13 @@ textarea:focus {
     }
 }
 
+/*
+ * ============================================================================
+ * SIDEBAR STYLES - Hashtags and Messages
+ * ============================================================================
+ */
+
+/* Sticky sidebars with scrolling content */
 .hashtag-sidebar,
 .left-sidebar {
     background: white;
@@ -463,7 +572,13 @@ textarea:focus {
     color: var(--text-color);
 }
 
-/* Action Buttons */
+/*
+ * ============================================================================
+ * ACTION BUTTONS - Reply, Star, etc.
+ * ============================================================================
+ */
+
+/* Action buttons (Reply, Show replies, etc.) */
 .action-btn {
     background: transparent;
     border: 1px solid var(--border-color);
@@ -491,7 +606,13 @@ textarea:focus {
     /* Hide icons if we revert fully, or keep them small if we mix? User said "text based buttons". Let's assume text only or text + icon. Let's go text only for simplicity as requested "revert to original". */
 }
 
-/* Icon Buttons (Delete & Ban) */
+/*
+ * ============================================================================
+ * ADMIN ICON BUTTONS - Delete and Ban
+ * ============================================================================
+ */
+
+/* Icon-only buttons for admin actions */
 .icon-btn {
     background: transparent;
     border: none;
