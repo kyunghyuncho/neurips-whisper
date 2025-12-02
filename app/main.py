@@ -167,6 +167,7 @@ async def root(
                 "id": message.id,
                 "content": linkify_content(message.content),
                 "created_at": formatted_time,
+                "created_at_iso": message.created_at.isoformat(),
                 "author": message.user.email if message.user else "Unknown",
                 "user_id": message.user_id if message.user else None,
                 "is_starred": message.id in starred_ids
@@ -205,6 +206,7 @@ async def root(
             "id": msg.id,
             "content": linkify_content(msg.content),  # Make URLs clickable
             "created_at": formatted_time,
+            "created_at_iso": msg.created_at.isoformat(),
             "author": msg.user.email if msg.user else "Unknown",
             "replies": replies,  # Nested list of reply dictionaries
             "is_starred": msg.id in starred_ids,

@@ -57,7 +57,8 @@
             </button>
             {% endif %}
 
-            <span class="feed-timestamp">{{ created_at }}</span>
+            <span class="feed-timestamp local-time" data-timestamp="{{ created_at_iso }}"
+                title="{{ created_at }} UTC">{{ created_at }}</span>
         </div>
 
         <!-- Right-aligned Action Buttons -->

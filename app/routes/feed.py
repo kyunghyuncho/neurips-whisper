@@ -81,6 +81,7 @@ def format_message_recursive(msg, starred_ids=None):
         "id": msg.id,
         "content": linkify_content(msg.content),  # Convert URLs and hashtags to links
         "created_at": formatted_time,
+        "created_at_iso": msg.created_at.isoformat(),
         "author": msg.user.email if msg.user else "Unknown",
         "user_id": msg.user_id if msg.user else None,
         "replies": replies  # Nested list of formatted reply dictionaries
@@ -388,6 +389,7 @@ async def get_my_messages(
                 "id": msg.id,
                 "content": linkify_content(msg.content),
                 "created_at": formatted_time,
+                "created_at_iso": msg.created_at.isoformat(),
                 "author": msg.user.email if msg.user else "Unknown",
                 "is_starred": msg.id in starred_set
             })
@@ -591,6 +593,7 @@ async def get_thread(
             "id": msg.id,
             "content": linkify_content(msg.content),
             "created_at": formatted_time,
+            "created_at_iso": msg.created_at.isoformat(),
             "author": msg.user.email if msg.user else "Unknown",
             "user_id": msg.user_id if msg.user else None,
             "replies": replies,

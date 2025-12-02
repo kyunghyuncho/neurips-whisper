@@ -39,7 +39,28 @@
         button[title="Refresh notifications"]:hover {
             color: #4b5563 !important;
         }
+
+        /* Tom Select Customization */
+        .ts-control {
+            background-color: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+        }
+
+        .ts-control .item {
+            color: #6b7280 !important;
+            font-size: 0.75rem !important;
+        }
+
+        .ts-dropdown {
+            font-size: 0.875rem !important;
+            z-index: 1000 !important;
+        }
     </style>
+    <!-- Tom Select for searchable dropdowns -->
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.default.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 </head>
 
 <body>
@@ -48,6 +69,12 @@
         <div class="header">
             <h1>NeurIPS Whisper</h1>
             <p class="subtitle">Developed by Kyunghyun Cho under KC Explorer LLC</p>
+            <div style="margin-top: 0.25rem; max-width: 250px; margin-left: auto; margin-right: auto;">
+                <select id="timezone-selector"
+                    style="font-size: 0.75rem; color: #6b7280; background: transparent; border: none; cursor: pointer;"
+                    aria-label="Select Timezone">
+                </select>
+            </div>
         </div>
 
         <!--
@@ -243,6 +270,7 @@
                 <!-- Initial render for focused message (deep link) -->
                 <!-- Render the full feed item with all metadata -->
                 {% with content=focused_message.content, created_at=focused_message.created_at,
+                created_at_iso=focused_message.created_at_iso,
                 author=focused_message.author, id=focused_message.id, user_id=focused_message.user_id, replies=[],
                 is_starred=False, expanded=True, user=user, in_modal=True %}
                 {% include "partials/feed_item.html" %}
@@ -591,6 +619,112 @@
                     console.error("Error parsing notification data", e);
                 }
             }
+        });
+
+        /**
+         * Initialize Timezone Selector
+         */
+        function initTimezoneSelector() {
+            const selector = document.getElementById('timezone-selector');
+            if (!selector) return;
+
+            // Get all supported timezones
+            let timezones = [];
+            if (typeof Intl.supportedValuesOf === 'function') {
+                timezones = Intl.supportedValuesOf('timeZone');
+            } else {
+                // Fallback for older browsers
+                timezones = [
+                    "UTC", "America/New_York", "America/Los_Angeles", "America/Chicago",
+                    "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Seoul", "Australia/Sydney"
+                ];
+            }
+
+            // Populate dropdown
+            const fragment = document.createDocumentFragment();
+            timezones.forEach(tz => {
+                const option = document.createElement('option');
+                option.value = tz;
+                option.textContent = tz.replace(/_/g, ' ');
+                fragment.appendChild(option);
+            });
+            selector.appendChild(fragment);
+
+            // Set initial value
+            const savedTz = localStorage.getItem('neurips_whisper_timezone');
+            const systemTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+            if (savedTz && timezones.includes(savedTz)) {
+                selector.value = savedTz;
+            } else if (timezones.includes(systemTz)) {
+                selector.value = systemTz;
+            } else {
+                selector.value = "UTC";
+            }
+
+            // Add change listener
+            selector.addEventListener('change', function () {
+                localStorage.setItem('neurips_whisper_timezone', this.value);
+                updateLocalTimes();
+            });
+
+            // Initialize Tom Select
+            new TomSelect('#timezone-selector', {
+                create: false,
+                sortField: {
+                    field: "text",
+                    direction: "asc"
+                },
+                maxOptions: null,
+                render: {
+                    item: function (data, escape) {
+                        return '<div>' + escape(data.text) + '</div>';
+                    }
+                }
+            });
+        }
+
+        /**
+         * Update all timestamps to local time
+         */
+        function updateLocalTimes() {
+            const selector = document.getElementById('timezone-selector');
+            // Use selected timezone or fallback to system/UTC
+            const timezone = selector && selector.value ? selector.value : Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+            // Update all timestamps
+            document.querySelectorAll('.local-time').forEach(el => {
+                const isoTimestamp = el.dataset.timestamp;
+                if (!isoTimestamp) return;
+
+                try {
+                    const date = new Date(isoTimestamp);
+                    // Format: "Oct 24, 12:34 PM"
+                    const formatted = date.toLocaleString(undefined, {
+                        timeZone: timezone,
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit'
+                    });
+                    el.textContent = formatted;
+                    el.title = `${date.toLocaleString(undefined, { timeZone: timezone })} (${timezone})`;
+                } catch (e) {
+                    console.error("Error formatting date", e);
+                }
+            });
+        }
+
+        // Run on load
+        document.addEventListener('DOMContentLoaded', function () {
+            initTimezoneSelector();
+            updateLocalTimes();
+        });
+
+        // Run after HTMX swaps (for new messages)
+        document.body.addEventListener('htmx:afterSwap', function (evt) {
+            // Small delay to ensure DOM is ready
+            setTimeout(updateLocalTimes, 10);
         });
 
     </script>
