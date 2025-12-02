@@ -178,7 +178,7 @@ async def verify(token: str):
         key="access_token",
         value=f"Bearer {token}",  # OAuth 2.0 standard format
         httponly=True,  # JavaScript can't access (prevents XSS attacks)
-        max_age=1800,  # 30 minutes in seconds
+        max_age=604800,  # 7 days in seconds
         samesite="lax",  # CSRF protection
         secure=False  # Set to True in production with HTTPS
     )

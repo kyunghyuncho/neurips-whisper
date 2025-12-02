@@ -49,8 +49,8 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        # Default: token expires in 15 minutes
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        # Default: token expires in 7 days
+        expire = datetime.utcnow() + timedelta(days=7)
     
     # Add "exp" claim (expiration time as Unix timestamp)
     # This is a JWT standard claim that the library will check automatically
