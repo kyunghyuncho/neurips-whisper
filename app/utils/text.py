@@ -43,7 +43,21 @@ def linkify_content(text: str) -> str:
             # - target="_blank": Opens in new tab
             # - rel="noopener noreferrer": Security best practice
             # - onclick="event.stopPropagation()": Prevents parent click handlers
-            return f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline" onclick="event.stopPropagation()">{url}</a>'
+            
+            # Shorten URL for display (e.g. https://example.com/very/long/path -> example.com/very...)
+            display_url = url
+            try:
+                # Remove protocol
+                short_url = re.sub(r'^https?://', '', url)
+                # Truncate if too long
+                if len(short_url) > 30:
+                    display_url = short_url[:27] + "..."
+                else:
+                    display_url = short_url
+            except:
+                pass
+                
+            return f'<a href="{url}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline" onclick="event.stopPropagation()">{display_url}</a>'
         
         if hashtag:
             # Create clickable hashtag filter link
@@ -64,6 +78,30 @@ def linkify_content(text: str) -> str:
     
     # Replace all matches using the replace function
     return re.sub(pattern, replace, text)
+
+
+def calculate_weighted_length(text: str) -> int:
+    """
+    Calculate the weighted length of text where URLs count as 1 character.
+    
+    Args:
+        text: The text to measure
+        
+    Returns:
+        The weighted length
+    """
+    # Regex to find URLs
+    url_pattern = r'https?://\S+'
+    
+    # Remove all URLs
+    text_without_urls = re.sub(url_pattern, '', text)
+    
+    # Count number of URLs
+    urls = re.findall(url_pattern, text)
+    num_urls = len(urls)
+    
+    # Weighted length = length of text without URLs + 1 char per URL
+    return len(text_without_urls) + num_urls
 
 
 def extract_terms(text: str) -> set[str]:
