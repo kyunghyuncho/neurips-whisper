@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # These users have admin privileges (delete messages, ban users)
     SUPER_USERS: str = ""
 
+    # VirusTotal API Key for URL safety checks
+    VIRUSTOTAL_API_KEY: str = ""
+
     @field_validator("DATABASE_URL")
     def validate_database_url(cls, value):
         if not value:

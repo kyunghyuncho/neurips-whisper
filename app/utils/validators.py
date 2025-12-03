@@ -28,23 +28,6 @@ FREE_EMAIL_DOMAINS = {
 }
 
 
-# Whitelist of allowed URL patterns
-# Only URLs matching these patterns are allowed in messages
-# This prevents spam, phishing, and unwanted external links
-URL_WHITELIST_PATTERNS = [
-    # Google Maps links (useful for conference venue/locations)
-    r"https?://(www\.)?google\.[a-z]+/maps.*",
-    r"https?://maps\.app\.goo\.gl/.*",
-    
-    # Academic research links (core to conference discussions)
-    r"https?://(www\.)?arxiv\.org/(abs|pdf)/.*",  # arXiv papers
-    r"https?://(www\.)?openreview\.net/.*",       # OpenReview papers
-    
-    # Conference official website
-    r"https?://(www\.)?neurips\.cc/.*"
-]
-
-
 def is_institutional_email(email: str) -> bool:
     """
     Check if an email address is from an institution (not a free provider).
@@ -72,35 +55,19 @@ def is_institutional_email(email: str) -> bool:
     # Reject if domain is in the free provider list
     return domain not in FREE_EMAIL_DOMAINS
 
-
 def is_valid_url(url: str) -> bool:
     """
-    Check if a URL matches the whitelist patterns.
+    Check if a string looks like a valid URL.
     
-    This prevents users from posting arbitrary external links while
-    allowing useful conference-related URLs (maps, papers, official site).
-    
-    Whitelist approach (allow known-good) is more secure than blacklist
-    (block known-bad) because it's impossible to list all malicious sites.
+    We now allow any URL but will check it against VirusTotal for safety.
     
     Args:
-        url: URL to validate (should start with http:// or https://)
+        url: URL to validate
         
     Returns:
-        True if URL matches any whitelist pattern, False otherwise
-        
-    Examples:
-        >>> is_valid_url("https://arxiv.org/abs/2301.12345")
-        True
-        >>> is_valid_url("https://malicious-site.com")
-        False
+        True if it looks like a URL, False otherwise
     """
-    # Check each allowed pattern
-    for pattern in URL_WHITELIST_PATTERNS:
-        # re.match checks if URL starts with pattern
-        # Returns a Match object if successful, None otherwise
-        if re.match(pattern, url):
-            return True
-    
-    # URL doesn't match any whitelist pattern
-    return False
+    # Basic regex for URL validation
+    # Matches http:// or https:// followed by non-whitespace characters
+    pattern = r"https?://\S+"
+    return bool(re.match(pattern, url))
