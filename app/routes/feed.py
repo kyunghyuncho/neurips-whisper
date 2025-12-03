@@ -37,7 +37,10 @@ import re
 import time
 from app.limiter import limiter
 from app.services.audit import log_action
+from app.limiter import limiter
+from app.services.audit import log_action
 from app.models import AuditLog
+from app.services.security import check_url_safety
 
 
 # Router with /feed prefix
@@ -137,10 +140,17 @@ async def post_message(
         raise HTTPException(status_code=400, detail="Message too long")
     
     # Validate URLs against whitelist
+    # Validate URLs and check safety
     words = content.split()
     for word in words:
-        if word.startswith("http") and not is_valid_url(word):
-            raise HTTPException(status_code=400, detail="URL not allowed")
+        if word.startswith("http"):
+            if not is_valid_url(word):
+                raise HTTPException(status_code=400, detail="Invalid URL format")
+            
+            # Check safety using VirusTotal
+            if not await check_url_safety(word):
+                # Redact suspicious URL in the content
+                content = content.replace(word, "[SUSPICIOUS LINK]")
 
     # Save message to database
     message = Message(user_id=user.id, content=content, parent_id=parent_id)
