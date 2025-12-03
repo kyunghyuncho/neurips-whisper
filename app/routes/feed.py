@@ -753,7 +753,7 @@ async def get_feed_container(
     request: Request,
     tags: list[str] = Query(None),
     search: str = Query(None),
-    view: str = Query("threaded"),
+    view: str = Query("unrolled"),
     db: AsyncSession = Depends(get_db)
 ):
     """

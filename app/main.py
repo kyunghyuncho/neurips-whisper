@@ -101,7 +101,7 @@ async def root(
     request: Request,
     tags: list[str] = Query(None),  # Optional hashtag filter: ?tags=ml&tags=neurips
     msg: int = None,  # Optional message ID to focus/highlight: ?msg=123
-    view: str = Query("threaded"),  # View mode: threaded vs unrolled
+    view: str = Query("unrolled"),  # View mode: threaded vs unrolled
     user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ):
