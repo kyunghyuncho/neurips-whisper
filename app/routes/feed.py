@@ -136,7 +136,9 @@ async def post_message(
         HTTPException: If message is too long or contains disallowed URLs
     """
     # Validate message length (Twitter-style limit)
-    if len(content) > 140:
+    # Use weighted length where URLs count as 1 character
+    from app.utils.text import calculate_weighted_length
+    if calculate_weighted_length(content) > 140:
         raise HTTPException(status_code=400, detail="Message too long")
     
     # Validate URLs against whitelist

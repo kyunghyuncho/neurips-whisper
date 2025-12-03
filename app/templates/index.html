@@ -205,9 +205,9 @@
                     <form hx-post="/feed/post" hx-swap="none" style="margin-bottom: 1rem;">
                         <div style="position: relative;">
                             <!-- Text area with character limit -->
-                            <textarea id="post-content" name="content" rows="3" placeholder="What's happening?"
-                                maxlength="140" required style="width: 100%;"
-                                oninput="updateCharCounter(this)"></textarea>
+                            <!-- maxlength removed to allow long URLs that count as 1 char -->
+                            <textarea id="post-content" name="content" rows="3" placeholder="What's happening?" required
+                                style="width: 100%;" oninput="updateCharCounter(this)"></textarea>
                             <!-- Character counter (updated by JavaScript) -->
                             <div id="char-counter"
                                 style="text-align: right; font-size: 0.8rem; color: #666; margin-top: 0.25rem;">0/140
@@ -503,10 +503,40 @@
          * @param {HTMLTextAreaElement} textarea - The textarea being monitored
          */
         function updateCharCounter(textarea) {
-            const maxLength = textarea.getAttribute('maxlength');
-            const currentLength = textarea.value.length;
+            const maxLength = 140;
+            const text = textarea.value;
+
+            // Calculate weighted length: URLs count as 1 character
+            // Regex to find URLs (http/https)
+            const urlPattern = /https?:\/\/\S+/g;
+
+            // Remove all URLs
+            const textWithoutUrls = text.replace(urlPattern, '');
+
+            // Count number of URLs
+            const urls = text.match(urlPattern) || [];
+            const numUrls = urls.length;
+
+            // Weighted length = length of text without URLs + 1 char per URL
+            const currentLength = textWithoutUrls.length + numUrls;
+
             const counter = document.getElementById('char-counter');
             counter.textContent = `${currentLength}/${maxLength}`;
+
+            // Visual feedback if over limit
+            if (currentLength > maxLength) {
+                counter.style.color = '#ef4444'; // Red
+                counter.style.fontWeight = 'bold';
+                // Disable submit button
+                const btn = textarea.form.querySelector('button[type="submit"]');
+                if (btn) btn.disabled = true;
+            } else {
+                counter.style.color = '#666'; // Gray
+                counter.style.fontWeight = 'normal';
+                // Enable submit button
+                const btn = textarea.form.querySelector('button[type="submit"]');
+                if (btn) btn.disabled = false;
+            }
         }
 
         /**
